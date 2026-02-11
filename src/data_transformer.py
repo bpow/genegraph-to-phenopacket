@@ -29,7 +29,7 @@ class PhenopacketTransformer:
         title, _ = get_pubmed_article_info(pid, src)
         evidence = [pps2.Evidence(
             reference=pps2.ExternalReference(id=f"PMID:{pmid}", reference=src, description=title or ""),
-            evidence_code=pps2.OntologyClass(id="ECO:0006017", label="author statement...")
+            evidence_code=pps2.OntologyClass(id="ECO:0000304", label="author statement supported by traceable reference used in manual assertion  ")
         )] if title else []
 
         phenotypes = [
