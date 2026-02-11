@@ -1,5 +1,17 @@
-# Work-in-progress proof-of-concept for transforming data from ClinGen's GaneGraph into phenopackets
+# ClinGen Genegraph to Phenopacket Data Transformer
 
-Everything for now is in the `genegraph-validity-pyld.ipynb` notebook. If you have [pixi](https://pixi.sh/latest/)
-installed then you should be able to call `pixi run start` to get a jupyter notebook session running with
-the relevant dependencies installed.
+This pipeline automates the transformation of Genegraph JSON-LD data into standardized **GA4GH Phenopackets (v2)**.
+
+## Project Structure
+- `src/main.py`: Entry point for the transformation loop.
+- `src/data_transformer.py`: Core logic for mapping JSON-LD to Phenopacket schema.
+- `src/utils/ontologies.py`: Manages HPO, Mondo, and Geno ontologies via `pronto` and `pyhpo`.
+- `src/utils/external_data.py`: Fetches publication metadata from NCBI PubMed API.
+- `data/`: Local storage for input JSON-LD and output Phenopackets.
+
+## Requirements
+- [Pixi](https://pixi.sh) for environment management.
+
+## Getting Started
+1. Install dependencies: `pixi install`
+2. Run the transformation: `pixi run data_transform`

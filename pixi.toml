@@ -1,12 +1,12 @@
 [workspace]
 channels = ["conda-forge"]
-description = "transform ClinGen genegraph data to phenopackets"
+description = "Transform ClinGen Genegraph JSON-LD proband data into GA4GH Phenopackets."
 name = "gv-snapshot"
-platforms = ["linux-64", "osx-64"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 version = "0.1.0"
 
 [tasks]
-start = "jupyter lab"
+data_transform = "python src/main.py"
 
 [dependencies]
 python = ">=3.10,<3.13"
@@ -14,7 +14,10 @@ jupyterlab = ">=4.2.5,<5"
 pyld = ">=2.0.4,<3"
 jsonpath-ng = ">=1.6.1,<2"
 jupyterlab-git = ">=0.50.1,<0.51"
+pyhpo = ">=4.0.0,<5"
+pronto = ">=2.7.3,<3"
+requests = ">=2.32.5,<3"
 
 [pypi-dependencies]
-phenopackets = "*"
+phenopackets = ">=2.0.2.post5, <3"
 hpo3 = "*"

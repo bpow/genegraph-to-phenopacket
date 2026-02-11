@@ -1,0 +1,60 @@
+# src/config.py
+
+# Static JSON-LD Frame based on one of the files
+PROBAND_FRAME = {
+    '@context': {
+        '@vocab': 'https://genegraph.clinicalgenome.org/terms/',
+        'id': '@id',
+        'type': '@type',
+        'cg': 'https://genegraph.clinicalgenome.org/terms/',
+        'dc': 'http://purl.org/dc/terms/',
+        'obo': 'http://purl.obolibrary.org/obo/',
+        'hgnc': 'https://identifiers.org/hgnc:',
+        'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+        'cggv': 'https://genegraph.clinicalgenome.org/r/gci/',
+        'evidenceStrength': {'@type': '@vocab'},
+        'calculatedEvidenceStrength': {'@type': '@vocab'},
+        'computedEvidenceStrength': {'@type': '@vocab'},
+        'specifiedBy': {'@type': '@vocab'},
+        'evidence': {'@container': '@set'},
+        'disease': {'@type': '@vocab'},
+        'gene': {'@type': '@vocab'},
+        'phenotypes': {'@type': '@id'},
+        'agent': {'@type': '@id'},
+        'role': {'@type': '@vocab'},
+        'modeOfInheritance': {'@type': '@vocab'},
+        'sex': {'@type': '@vocab'},
+        'direction': {'@type': '@vocab'},
+        'ageType': {'@type': '@vocab'},
+        'ageUnit': {'@type': '@vocab'},
+        'dc:source': {'@type': '@id'},
+        'curationReasons': {'@type': '@vocab', '@container': '@set'},
+        'GCISnapshot': {'@type': '@id'},
+        'dc:isVersionOf': {'@type': '@id'},
+        'websiteLegacyID': {'@type': '@id'}
+    },
+    '@type': 'Proband',
+    '@embed': '@always'
+}
+
+# Resource Metadata for Phenopackets
+RESOURCE_METADATA = [
+    {
+        "id": "geno",
+        "name": "Genotype Ontology",
+        "url": "http://purl.obolibrary.org/obo/geno.owl",
+        "namespace_prefix": "GENO"
+    },
+    {
+        "id": "hp",
+        "name": "human phenotype ontology",
+        "url": "http://purl.obolibrary.org/obo/hp.owl",
+        "namespace_prefix": "HP"
+    },
+    {
+        "id": "mondo",
+        "name": "Mondo Disease Ontology",
+        "url": "http://purl.obolibrary.org/obo/mondo.owl",
+        "namespace_prefix": "MONDO"
+    }
+]

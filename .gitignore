@@ -1,5 +1,18 @@
-# pixi environments
-.pixi
+# Data files
+data/input/*.json
+data/output/*.json
+data/raw/
+
+# Logs
+logs/*.log
+
+# Environment/System
+.pixi/
+__pycache__/
+*.pyc
+.DS_Store
+.idea
 *.egg-info
 .ipynb_checkpoints
 yaml
+
