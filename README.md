@@ -14,4 +14,4 @@ This pipeline automates the transformation of Genegraph JSON-LD data into standa
 
 ## Getting Started
 1. Install dependencies: `pixi install`
-2. Run the transformation: `pixi run data_transform`
+2. Run the transformation: `pixi run data_transform --url <path_to_genegraph_data_url>`
