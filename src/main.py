@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from google.protobuf.json_format import MessageToJson
 from utils.paths import parse_args, get_project_root
 from utils.logger import setup_logger
@@ -6,10 +7,26 @@ from utils.downloader import fetch_and_extract_data
 from utils.ontologies import OntologyManager
 from data_transformer import PhenopacketTransformer
 
+
+def ensure_directories():
+    """Ensure that the required data and log directories exist."""
+    directories = [
+        "data/input",
+        "data/output",
+        "data/ontologies",
+        "logs"
+    ]
+    for dir_path in directories:
+        # parents=True creates middle folders; exist_ok prevents errors if it's already there
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
+
+
 def main():
     args = parse_args()
     root = get_project_root()
     logger = setup_logger(root / "logs")
+
+    ensure_directories()
 
     # 1. Handle Data Download if URL is provided
     if args.url:
@@ -46,6 +63,7 @@ def main():
             logger.error(f"Error in {file_path.name}: {e}")
 
     logger.info("Transformation pipeline complete.")
+
 
 if __name__ == "__main__":
     main()

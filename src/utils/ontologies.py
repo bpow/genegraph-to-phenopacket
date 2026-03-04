@@ -1,4 +1,3 @@
-import pyhpo
 import pronto
 
 
@@ -15,17 +14,17 @@ class OntologyManager:
         # These calls use the Internet and may take a moment
         self.mondo = pronto.Ontology("http://purl.obolibrary.org/obo/mondo.owl")
         self.geno = pronto.Ontology("http://purl.obolibrary.org/obo/geno.owl")
+        self.hpo = pronto.Ontology("http://purl.obolibrary.org/obo/hpo.owl")
 
         # Creating lookups for fast access during transformation
         self.geno_lookup = {term.name: term.id for term in self.geno.terms()}
-        self.mondo_lookup = {term.id: term.name for term in self.mondo.terms()}
 
         self.logger.info("Ontologies successfully loaded and indexed.")
 
     def hpo_to_labeled_phenotype(self, hpo_id):
-        """Maps HPO ID to a clean label using pyhpo."""
+        """Maps HPO ID to a clean label"""
         try:
-            term = pyhpo.Ontology.get_hpo_object(hpo_id.replace('obo:HP_', 'HP:'))
+            term = self.hpo[hpo_id.replace('obo:HP_', 'HP:')].name
             return {'id': term.id, 'label': term.name}
         except Exception as e:
             # We log the specific HPO ID that failed
