@@ -1,25 +1,22 @@
-import argparse
 from pathlib import Path
 
-# To get the root path for the user
-def get_project_root() -> Path:
-    return Path(__file__).parent.parent.parent.absolute()
+# Define the root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Define the paths
+PATHS = {
+    "INPUT": PROJECT_ROOT / "data" / "input",
+    "OUTPUT": PROJECT_ROOT / "data" / "output",
+    "ONTOLOGY": PROJECT_ROOT / "data" / "ontologies",
+    "LOGS": PROJECT_ROOT / "logs"
+}
 
-def parse_args():
-    root = get_project_root()
-    parser = argparse.ArgumentParser(description="Genegraph to Phenopacket Transformer")
+# 3. Create folders once on import
+for path in PATHS.values():
+    path.mkdir(parents=True, exist_ok=True)
 
-    # Path Arguments
-    parser.add_argument("--input", "-i", type=Path, default=root / "data" / "input")
-    parser.add_argument("--output", "-o", type=Path, default=root / "data" / "output")
-
-    # Download Argument
-    parser.add_argument(
-        "--url", "-u",
-        type=str,
-        default=None,
-        help="URL to the genegraph .tar.gz data"
-    )
-
-    return parser.parse_args()
+# 4. Export constants
+INPUT_DIR = PATHS["INPUT"]
+OUTPUT_DIR = PATHS["OUTPUT"]
+ONTOLOGY_DIR = PATHS["ONTOLOGY"]
+LOG_DIR = PATHS["LOGS"]

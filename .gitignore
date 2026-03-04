@@ -1,7 +1,7 @@
 # Data files
 data/input/*.json
 data/output/*.json
-
+data/
 
 # Logs
 logs/*.log

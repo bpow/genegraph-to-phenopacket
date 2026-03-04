@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger("GenegraphTransform")
 
+
 def get_pubmed_article_info(proband_id, source_url):
     """Fetches PMID metadata from NCBI."""
     if not (source_url and "pubmed.ncbi.nlm.nih.gov" in source_url):

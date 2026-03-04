@@ -1,68 +1,116 @@
-import json
+import argparse
 from pathlib import Path
 from google.protobuf.json_format import MessageToJson
-from utils.paths import parse_args, get_project_root
-from utils.logger import setup_logger
-from utils.downloader import fetch_and_extract_data
-from utils.ontologies import OntologyManager
-from data_transformer import PhenopacketTransformer
+
+# Centralized path and project constants
+from src.utils.paths import INPUT_DIR, OUTPUT_DIR, LOG_DIR
+from src.utils.logger import setup_logger
+from src.utils.data_downloader import fetch_and_extract_data
+from src.utils.ontologies import OntologyManager
+from src.data_transformer import PhenopacketTransformer
 
 
-def ensure_directories():
-    """Ensure that the required data and log directories exist."""
-    directories = [
-        "data/input",
-        "data/output",
-        "data/ontologies",
-        "logs"
-    ]
-    for dir_path in directories:
-        # parents=True creates middle folders; exist_ok prevents errors if it's already there
-        Path(dir_path).mkdir(parents=True, exist_ok=True)
+def parse_args():
+    """Defines CLI arguments with defaults pointing to the project structure."""
+    parser = argparse.ArgumentParser(description="Genegraph to Phenopacket Transformer")
+
+    # Path Arguments
+    parser.add_argument("--input", "-i", type=Path, default=INPUT_DIR,
+                        help="Directory containing JSON-LD files")
+    parser.add_argument("--output", "-o", type=Path, default=OUTPUT_DIR,
+                        help="Directory to save Phenopackets")
+
+    # Debugging/Testing Argument
+    parser.add_argument("--file", "-f", type=Path, default=None,
+                        help="Path to a single JSON-LD file for targeted testing")
+
+    # Download Argument
+    parser.add_argument("--url", "-u", type=str, default=None,
+                        help="URL to the genegraph .tar.gz data")
+
+    # Custom Ontology Path Arguments
+    parser.add_argument("--hp-path", type=Path, help="Local path to HPO .owl/.obo file")
+    parser.add_argument("--mondo-path", type=Path, help="Local path to Mondo .owl/.obo file")
+    parser.add_argument("--geno-path", type=Path, help="Local path to Geno .owl/.obo file")
+
+    return parser.parse_args()
 
 
 def main():
+    # 1. Setup
     args = parse_args()
-    root = get_project_root()
-    logger = setup_logger(root / "logs")
+    logger = setup_logger(LOG_DIR)
+    logger.info("Starting Genegraph to Phenopacket Pipeline")
 
-    ensure_directories()
-
-    # 1. Handle Data Download if URL is provided
+    # 2. Handle Data Acquisition
     if args.url:
-        logger.info("Download URL detected.")
+        logger.info(f"Downloading data from: {args.url}")
         success = fetch_and_extract_data(args.url, args.input, logger)
         if not success:
-            logger.error("Stopping: Data download failed.")
+            logger.error("Data acquisition failed. Exiting.")
             return
 
-    # 2. Initialize Ontologies (Now using Pronto for Mondo & Geno)
+    # 3. Initialize Domain Resources
     try:
-        om = OntologyManager(logger)
+        # Collect custom ontology paths into a dictionary for the Manager
+        custom_ontos = {}
+        if args.hp_path: custom_ontos["hp"] = args.hp_path
+        if args.mondo_path: custom_ontos["mondo"] = args.mondo_path
+        if args.geno_path: custom_ontos["geno"] = args.geno_path
+
+        # OntologyManager handles user paths, caching, and downloading internally
+        om = OntologyManager(logger, custom_paths=custom_ontos)
         transformer = PhenopacketTransformer(om, logger)
     except Exception as e:
-        logger.error(f"Failed to initialize ontologies: {e}")
+        logger.error(f"Resource Initialization Error: {e}")
         return
 
-    # 3. Process the Files
-    input_files = list(args.input.glob("*.json"))
-    if not input_files:
-        logger.warning(f"No .json files found in {args.input}. Check your download/path.")
-        return
+    # 4. Determine File Queue
+    if args.file:
+        if not args.file.exists():
+            logger.error(f"Specified test file not found: {args.file}")
+            return
+        files_to_process = [args.file]
+        logger.info(f"DEBUG MODE: Processing single file: {args.file.name}")
+    else:
+        files_to_process = list(args.input.glob("*.json"))
+        if not files_to_process:
+            logger.warning(f"No .json files found in {args.input}.")
+            return
+        logger.info(f"BATCH MODE: Found {len(files_to_process)} files in {args.input}")
 
-    logger.info(f"Starting transformation of {len(input_files)} files...")
-    for file_path in input_files:
+    # 5. Execution Loop
+    file_processed_count = 0
+    total_phenopackets_created = 0
+
+    for file_path in files_to_process:
         try:
-            phenopacket = transformer.transform_file(file_path)
-            if phenopacket:
-                output_path = args.output / f"{file_path.stem}_pp.json"
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(MessageToJson(phenopacket, indent=2))
-                logger.info(f"Saved: {output_path.name}")
-        except Exception as e:
-            logger.error(f"Error in {file_path.name}: {e}")
+            # transform_file now returns a list of (patient_label, phenopacket_object)
+            phenopackets = transformer.transform_file(file_path)
 
-    logger.info("Transformation pipeline complete.")
+            if not phenopackets:
+                logger.warning(f"No phenopackets generated from {file_path.name}")
+                continue
+
+            for patient_label, pp in phenopackets:
+                # Naming convention: filename_patientlabel_pp.json
+                output_filename = f"{file_path.stem}_{patient_label}_pp.json"
+                output_path = args.output / output_filename
+
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(MessageToJson(pp, indent=2))
+
+                total_phenopackets_created += 1
+
+            logger.info(f"Success: Processed {file_path.name} ({len(phenopackets)} phenopackets)")
+            file_processed_count += 1
+
+        except Exception as e:
+            logger.error(f"Failed to transform {file_path.name}: {str(e)}")
+
+    logger.info(f"Pipeline complete.")
+    logger.info(f"Files processed: {file_processed_count}")
+    logger.info(f"Total Phenopackets created: {total_phenopackets_created}")
 
 
 if __name__ == "__main__":
