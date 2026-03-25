@@ -266,7 +266,7 @@ def test_variant_gene_context_omitted_when_gene_not_in_title():
     }
     interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
     vd = interps[0].variant_interpretation.variation_descriptor
-    assert vd.gene_context.value_id == ""  # not set
+    assert not vd.HasField("gene_context")
 
 def test_variant_allelic_state_set_when_zygosity_present():
     ind = {
