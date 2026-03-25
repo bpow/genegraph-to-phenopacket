@@ -106,3 +106,37 @@ def passes_filter(individual: dict) -> bool:
         return False
     has_hpo = bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
     return has_hpo
+
+
+def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
+    """Build pps2.Individual from individual dict fields."""
+    sex = SEX_MAP.get((individual.get("sex") or "").lower(), pps2.Sex.UNKNOWN_SEX)
+    age_type = individual.get("ageType")
+    age_unit = individual.get("ageUnit")
+    age_value = individual.get("ageValue")
+
+    vital_status = pps2.VitalStatus(
+        status=pps2.VitalStatus.Status.DECEASED if age_type == "Death"
+               else pps2.VitalStatus.Status.ALIVE
+    )
+
+    kwargs = dict(
+        id=f"PMID_{pmid}:{label}",
+        sex=sex,
+        vital_status=vital_status,
+    )
+
+    age_result = build_iso8601_age(age_value, age_unit) if age_unit else None
+    if age_result:
+        kind, value = age_result
+        if kind == "age":
+            kwargs["time_at_last_encounter"] = pps2.TimeElement(
+                age=pps2.Age(iso8601duration=value)
+            )
+        elif kind == "gestational":
+            weeks, days = value
+            kwargs["time_at_last_encounter"] = pps2.TimeElement(
+                gestational_age=pps2.GestationalAge(weeks=weeks, days=days)
+            )
+
+    return pps2.Individual(**kwargs)

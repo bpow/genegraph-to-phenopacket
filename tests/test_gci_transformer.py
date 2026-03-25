@@ -142,3 +142,43 @@ def test_passes_filter_proband_no_hpo():
 def test_passes_filter_missing_is_proband():
     ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
     assert passes_filter(ind) is False
+
+
+import phenopackets.schema.v2 as pps2
+from gci_transformer import build_subject
+
+def test_build_subject_male():
+    ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 41}
+    subj = build_subject("12345", "Proband A", ind)
+    assert subj.id == "PMID_12345:Proband A"
+    assert subj.sex == pps2.Sex.MALE
+
+def test_build_subject_female():
+    ind = {"sex": "Female", "ageType": "Onset", "ageUnit": "Years", "ageValue": 5}
+    subj = build_subject("99", "Jane", ind)
+    assert subj.sex == pps2.Sex.FEMALE
+
+def test_build_subject_unknown_sex():
+    ind = {"sex": "Other", "ageType": "Onset", "ageUnit": "Years", "ageValue": 10}
+    subj = build_subject("1", "X", ind)
+    assert subj.sex == pps2.Sex.UNKNOWN_SEX
+
+def test_build_subject_vital_status_deceased():
+    ind = {"sex": "Male", "ageType": "Death", "ageUnit": "Years", "ageValue": 14}
+    subj = build_subject("1", "X", ind)
+    assert subj.vital_status.status == pps2.VitalStatus.Status.DECEASED
+
+def test_build_subject_vital_status_alive():
+    ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 14}
+    subj = build_subject("1", "X", ind)
+    assert subj.vital_status.status == pps2.VitalStatus.Status.ALIVE
+
+def test_build_subject_age_at_last_encounter():
+    ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 41}
+    subj = build_subject("1", "X", ind)
+    assert subj.time_at_last_encounter.age.iso8601duration == "P41Y"
+
+def test_build_subject_missing_age_omits_field():
+    ind = {"sex": "Male", "ageType": None, "ageUnit": None, "ageValue": None}
+    subj = build_subject("1", "X", ind)
+    assert not subj.HasField("time_at_last_encounter")
