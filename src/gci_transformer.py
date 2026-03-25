@@ -142,9 +142,8 @@ def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     return pps2.Individual(**kwargs)
 
 
-def build_phenotypic_features(individual: dict, pmid: str, article_title: str, om) -> list:
-    """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
-    evidence = [pps2.Evidence(
+def _make_evidence(pmid: str, article_title: str) -> list:
+    return [pps2.Evidence(
         reference=pps2.ExternalReference(
             id=f"PMID:{pmid}",
             description=article_title or "",
@@ -155,19 +154,22 @@ def build_phenotypic_features(individual: dict, pmid: str, article_title: str, o
         ),
     )]
 
+
+def build_phenotypic_features(individual: dict, pmid: str, article_title: str, om) -> list:
+    """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
     features = []
     for hpo_id in individual.get("hpoIdInDiagnosis", []):
         mapped = om.hpo_to_labeled_phenotype(hpo_id)
         features.append(pps2.PhenotypicFeature(
             type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
             excluded=False,
-            evidence=evidence,
+            evidence=_make_evidence(pmid, article_title),
         ))
     for hpo_id in individual.get("hpoIdInElimination", []):
         mapped = om.hpo_to_labeled_phenotype(hpo_id)
         features.append(pps2.PhenotypicFeature(
             type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
             excluded=True,
-            evidence=evidence,
+            evidence=_make_evidence(pmid, article_title),
         ))
     return features
