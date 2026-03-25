@@ -182,3 +182,9 @@ def test_build_subject_missing_age_omits_field():
     ind = {"sex": "Male", "ageType": None, "ageUnit": None, "ageValue": None}
     subj = build_subject("1", "X", ind)
     assert not subj.HasField("time_at_last_encounter")
+
+def test_build_subject_gestational_age():
+    ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Weeks gestation", "ageValue": 38.5}
+    subj = build_subject("1", "X", ind)
+    assert subj.time_at_last_encounter.gestational_age.weeks == 38
+    assert subj.time_at_last_encounter.gestational_age.days == 4
