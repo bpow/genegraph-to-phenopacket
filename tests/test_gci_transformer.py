@@ -1,7 +1,4 @@
 # tests/test_gci_transformer.py
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
 from gci_transformer import sanitize_label, mondo_id_to_colon, build_iso8601_age
 
 

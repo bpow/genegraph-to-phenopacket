@@ -1,7 +1,6 @@
 # src/gci_transformer.py
 import math
 import logging
-from google.protobuf.timestamp_pb2 import Timestamp
 import phenopackets.schema.v2 as pps2
 
 # ---------------------------------------------------------------------------
