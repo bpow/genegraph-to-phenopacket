@@ -116,16 +116,13 @@ def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     age_unit = individual.get("ageUnit")
     age_value = individual.get("ageValue")
 
-    vital_status = pps2.VitalStatus(
-        status=pps2.VitalStatus.Status.DECEASED if age_type == "Death"
-               else pps2.VitalStatus.Status.ALIVE
-    )
-
     kwargs = dict(
         id=f"PMID_{pmid}:{label}",
         sex=sex,
-        vital_status=vital_status,
     )
+
+    if age_type == "Death":
+        kwargs["vital_status"] = pps2.VitalStatus(status=pps2.VitalStatus.Status.DECEASED)
 
     age_result = build_iso8601_age(age_value, age_unit) if age_unit else None
     if age_result:
@@ -150,8 +147,8 @@ def _make_evidence(pmid: str, article_title: str) -> list:
             description=article_title or "",
         ),
         evidence_code=pps2.OntologyClass(
-            id="ECO:0006017",
-            label="author statement from published clinical study used in manual assertion",
+            id="ECO:0000304",
+            label="author statement supported by traceable reference used in manual assertion",
         ),
     )]
 
@@ -185,7 +182,14 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
 
     results = []
     for variant in individual.get("variants", []):
-        var_id = variant.get("carId") or variant.get("clinvarVariantId", "")
+        car_id = variant.get("carId")
+        clinvar_id = variant.get("clinvarVariantId", "")
+        if car_id:
+            var_id = f"caid:{car_id}"
+        elif clinvar_id:
+            var_id = f"clinvar:{clinvar_id}"
+        else:
+            var_id = ""
         var_title = variant.get("clinvarVariantTitle", "")
 
         vd_kwargs = dict(

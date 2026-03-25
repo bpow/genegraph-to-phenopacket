@@ -168,10 +168,10 @@ def test_build_subject_vital_status_deceased():
     subj = build_subject("1", "X", ind)
     assert subj.vital_status.status == pps2.VitalStatus.Status.DECEASED
 
-def test_build_subject_vital_status_alive():
+def test_build_subject_vital_status_not_set_when_not_death():
     ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 14}
     subj = build_subject("1", "X", ind)
-    assert subj.vital_status.status == pps2.VitalStatus.Status.ALIVE
+    assert not subj.HasField("vital_status")
 
 def test_build_subject_age_at_last_encounter():
     ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 41}
@@ -228,7 +228,7 @@ def test_phenotypic_features_evidence_populated():
     ev = features[0].evidence[0]
     assert ev.reference.id == "PMID:99999"
     assert ev.reference.description == "My Article"
-    assert ev.evidence_code.id == "ECO:0006017"
+    assert ev.evidence_code.id == "ECO:0000304"
 
 
 from gci_transformer import build_genomic_interpretations
@@ -239,7 +239,7 @@ def test_variant_uses_carid_when_available():
         "variants": [{"carId": "CA123", "clinvarVariantId": "456", "clinvarVariantTitle": "NM_001.1(GENE):c.1A>T"}],
     }
     interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
-    assert interps[0].variant_interpretation.variation_descriptor.id == "CA123"
+    assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA123"
 
 def test_variant_falls_back_to_clinvar_id():
     ind = {
@@ -247,7 +247,7 @@ def test_variant_falls_back_to_clinvar_id():
         "variants": [{"carId": "", "clinvarVariantId": "789", "clinvarVariantTitle": "Some variant"}],
     }
     interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
-    assert interps[0].variant_interpretation.variation_descriptor.id == "789"
+    assert interps[0].variant_interpretation.variation_descriptor.id == "clinvar:789"
 
 def test_variant_gene_context_set_when_gene_in_title():
     ind = {
