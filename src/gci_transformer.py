@@ -78,3 +78,23 @@ def build_iso8601_age(age_value, age_unit: str):
         logging.getLogger(__name__).warning(f"Unrecognized ageUnit '{age_unit}' — omitting time_at_last_encounter")
         return None
     return ("age", template.replace("{n}", str(int(age_value))))
+
+
+def collect_individuals(annotation: dict):
+    """
+    Yield (individual_dict, tag) for all individuals in an annotation.
+    tag is "i" (direct), "f" (family), or "g" (group/group-family).
+    """
+    for ind in annotation.get("individuals", []):
+        yield ind, "i"
+
+    for family in annotation.get("families", []):
+        for ind in family.get("individualIncluded", []):
+            yield ind, "f"
+
+    for group in annotation.get("groups", []):
+        for ind in group.get("individualIncluded", []):
+            yield ind, "g"
+        for family in group.get("familyIncluded", []):
+            for ind in family.get("individualIncluded", []):
+                yield ind, "g"

@@ -61,3 +61,61 @@ def test_build_iso8601_age_unknown_unit_logs_warning(caplog):
 
 def test_build_iso8601_age_none_unit_returns_none():
     assert build_iso8601_age(5, None) is None
+
+
+from gci_transformer import collect_individuals
+
+def _make_individual(label):
+    return {"label": label, "is_proband": "Yes"}
+
+def test_collect_direct_individuals():
+    annotation = {
+        "individuals": [_make_individual("A"), _make_individual("B")],
+        "families": [],
+        "groups": [],
+    }
+    results = list(collect_individuals(annotation))
+    assert len(results) == 2
+    assert all(tag == "i" for _, tag in results)
+    assert [ind["label"] for ind, _ in results] == ["A", "B"]
+
+def test_collect_family_individuals():
+    annotation = {
+        "individuals": [],
+        "families": [{"individualIncluded": [_make_individual("C")]}],
+        "groups": [],
+    }
+    results = list(collect_individuals(annotation))
+    assert len(results) == 1
+    assert results[0][1] == "f"
+
+def test_collect_group_direct_individuals():
+    annotation = {
+        "individuals": [],
+        "families": [],
+        "groups": [{"individualIncluded": [_make_individual("D")], "familyIncluded": []}],
+    }
+    results = list(collect_individuals(annotation))
+    assert len(results) == 1
+    assert results[0][1] == "g"
+
+def test_collect_group_family_individuals():
+    annotation = {
+        "individuals": [],
+        "families": [],
+        "groups": [{
+            "individualIncluded": [],
+            "familyIncluded": [{"individualIncluded": [_make_individual("E")]}],
+        }],
+    }
+    results = list(collect_individuals(annotation))
+    assert len(results) == 1
+    assert results[0][1] == "g"
+
+def test_collect_empty_annotation():
+    annotation = {"individuals": [], "families": [], "groups": []}
+    assert list(collect_individuals(annotation)) == []
+
+def test_collect_annotation_with_absent_keys():
+    # Annotation dict with no keys at all should yield nothing, not raise
+    assert list(collect_individuals({})) == []
