@@ -55,3 +55,12 @@ def test_build_iso8601_age_none_value_returns_none():
 
 def test_build_iso8601_age_float_truncated():
     assert build_iso8601_age(41.7, "Years") == ("age", "P41Y")
+
+def test_build_iso8601_age_unknown_unit_logs_warning(caplog):
+    import logging
+    with caplog.at_level(logging.WARNING, logger="gci_transformer"):
+        build_iso8601_age(5, "Decades")
+    assert "Unrecognized ageUnit" in caplog.text
+
+def test_build_iso8601_age_none_unit_returns_none():
+    assert build_iso8601_age(5, None) is None

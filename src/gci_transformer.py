@@ -68,6 +68,8 @@ def build_iso8601_age(age_value, age_unit: str):
     """
     if age_value is None:
         return None
+    if age_unit is None:
+        return None
     if age_unit == "Weeks gestation":
         weeks = math.floor(age_value)
         days = round((age_value - weeks) * 7)
