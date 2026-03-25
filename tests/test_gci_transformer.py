@@ -281,3 +281,67 @@ def test_variant_no_variants_returns_empty():
     ind = {"recessiveZygosity": None, "variants": []}
     interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
     assert interps == []
+
+
+from gci_transformer import build_phenopacket
+
+def _make_om_with_mondo():
+    om = MagicMock()
+    om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
+    om.mondo_lookup = {"MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy"}
+    return om
+
+def _base_individual():
+    return {
+        "label": "Test Patient",
+        "uuid": "uuid-123",
+        "sex": "Male",
+        "is_proband": "Yes",
+        "ageType": "Onset", "ageUnit": "Years", "ageValue": 30,
+        "recessiveZygosity": None,
+        "hpoIdInDiagnosis": ["HP:0001942"],
+        "hpoIdInElimination": [],
+        "diagnosis": [{"diseaseId": "MONDO_0016587"}],
+        "variants": [],
+    }
+
+def test_build_phenopacket_id_format():
+    # Input uses MONDO_0016587; ID should contain the underscore form
+    pp = build_phenopacket(0, 1, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "i", _make_om_with_mondo())
+    assert pp.id == "0_1_DSG2_MONDO_0016587_12345_Test_Patient_i"
+
+def test_build_phenopacket_diagnosis_uses_colon_form():
+    # Diagnosis disease.id must use colon format even though ID uses underscore
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "i", _make_om_with_mondo())
+    assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
+
+def test_build_phenopacket_subject_id():
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "f", _make_om_with_mondo())
+    assert pp.subject.id == "PMID_99:Test Patient"
+
+def test_build_phenopacket_freetext_disease_defaults_to_fallback():
+    ind = _base_individual()
+    ind["diagnosis"] = [{"diseaseId": "FREETEXT_abc"}]
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", ind, "i", _make_om_with_mondo())
+    assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
+    assert pp.interpretations[0].diagnosis.disease.label == "human disease"
+
+def test_build_phenopacket_empty_diagnosis_defaults_to_fallback():
+    ind = _base_individual()
+    ind["diagnosis"] = []
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", ind, "i", _make_om_with_mondo())
+    assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
+
+def test_build_phenopacket_interpretation_id():
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
+
+def test_build_phenopacket_metadata_schema_version():
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    assert pp.meta_data.phenopacket_schema_version == "2.0"
+
+def test_build_phenopacket_metadata_resources_count():
+    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    assert len(pp.meta_data.resources) == 4
+    resource_ids = {r.id for r in pp.meta_data.resources}
+    assert resource_ids == {"hp", "mondo", "geno", "eco"}

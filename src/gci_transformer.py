@@ -2,6 +2,7 @@
 import math
 import logging
 import phenopackets.schema.v2 as pps2
+from google.protobuf.timestamp_pb2 import Timestamp
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -214,3 +215,59 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
             variant_interpretation=vi,
         ))
     return results
+
+
+def build_phenopacket(file_index: int, annotation_index: int,
+                      gene_symbol: str, hgnc_id: str,
+                      pmid: str, article_title: str,
+                      individual: dict, tag: str, om) -> pps2.Phenopacket:
+    """Assemble a complete Phenopacket from all parts."""
+    label = individual.get("label", "Unknown")
+    label_s = sanitize_label(label)
+    uuid = individual.get("uuid", "no-uuid")
+
+    # Disease
+    diag_list = individual.get("diagnosis") or []
+    if diag_list and diag_list[0].get("diseaseId"):
+        raw_disease_id = diag_list[0]["diseaseId"]
+    else:
+        raw_disease_id = ""
+    mondo_id = mondo_id_to_colon(raw_disease_id)
+    # mondo_id for the Phenopacket ID uses underscore form
+    mondo_id_for_pp_id = mondo_id.replace(":", "_")
+
+    disease_label = om.mondo_lookup.get(mondo_id, FALLBACK_DISEASE_LABEL)
+
+    # Phenopacket ID
+    pp_id = f"{file_index}_{annotation_index}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
+
+    # MetaData
+    ts = Timestamp()
+    ts.GetCurrentTime()
+    meta_data = pps2.MetaData(
+        created=ts,
+        resources=RESOURCE_METADATA,
+        phenopacket_schema_version="2.0",
+    )
+
+    # Build parts
+    subject = build_subject(pmid, label, individual)
+    phenotypic_features = build_phenotypic_features(individual, pmid, article_title, om)
+    genomic_interps = build_genomic_interpretations(individual, pmid, label, gene_symbol, hgnc_id)
+
+    interpretation = pps2.Interpretation(
+        id=f"{pmid}_{label_s}_{uuid}",
+        progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
+        diagnosis=pps2.Diagnosis(
+            disease=pps2.OntologyClass(id=mondo_id, label=disease_label),
+            genomic_interpretations=genomic_interps,
+        ),
+    )
+
+    return pps2.Phenopacket(
+        id=pp_id,
+        subject=subject,
+        phenotypic_features=phenotypic_features,
+        interpretations=[interpretation],
+        meta_data=meta_data,
+    )
