@@ -21,3 +21,4 @@ requests = ">=2.32.5,<3"
 [pypi-dependencies]
 phenopackets = ">=2.0.2.post5, <3"
 hpo3 = "*"
+pytest = ">=9.0.2, <10"
