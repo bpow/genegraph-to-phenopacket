@@ -173,3 +173,44 @@ def build_phenotypic_features(individual: dict, pmid: str, article_title: str, o
             evidence=_make_evidence(pmid, article_title),
         ))
     return features
+
+
+def build_genomic_interpretations(individual: dict, pmid: str, label: str,
+                                   gene_symbol: str, hgnc_id: str) -> list:
+    """Build one GenomicInterpretation per variant in the individual."""
+    subject_id = f"PMID_{pmid}:{label}"
+    zyg = individual.get("recessiveZygosity")
+    geno_id, geno_label = GENO_LOOKUP.get(zyg.lower(), GENO_FALLBACK) if zyg else (None, None)
+
+    results = []
+    for variant in individual.get("variants", []):
+        var_id = variant.get("carId") or variant.get("clinvarVariantId", "")
+        var_title = variant.get("clinvarVariantTitle", "")
+
+        vd_kwargs = dict(
+            id=var_id,
+            label=var_title,
+            molecule_context=pps2.MoleculeContext.unspecified_molecule_context,
+        )
+
+        if gene_symbol and gene_symbol in var_title:
+            vd_kwargs["gene_context"] = pps2.GeneDescriptor(
+                value_id=hgnc_id,
+                symbol=gene_symbol,
+            )
+
+        if geno_id:
+            vd_kwargs["allelic_state"] = pps2.OntologyClass(id=geno_id, label=geno_label)
+
+        vd = pps2.VariationDescriptor(**vd_kwargs)
+        vi = pps2.VariantInterpretation(
+            acmg_pathogenicity_classification=pps2.AcmgPathogenicityClassification.NOT_PROVIDED,
+            therapeutic_actionability=pps2.TherapeuticActionability.UNKNOWN_ACTIONABILITY,
+            variation_descriptor=vd,
+        )
+        results.append(pps2.GenomicInterpretation(
+            subject_or_biosample_id=subject_id,
+            interpretation_status=pps2.GenomicInterpretation.InterpretationStatus.UNKNOWN_STATUS,
+            variant_interpretation=vi,
+        ))
+    return results

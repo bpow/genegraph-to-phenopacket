@@ -229,3 +229,55 @@ def test_phenotypic_features_evidence_populated():
     assert ev.reference.id == "PMID:99999"
     assert ev.reference.description == "My Article"
     assert ev.evidence_code.id == "ECO:0006017"
+
+
+from gci_transformer import build_genomic_interpretations
+
+def test_variant_uses_carid_when_available():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA123", "clinvarVariantId": "456", "clinvarVariantTitle": "NM_001.1(GENE):c.1A>T"}],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
+    assert interps[0].variant_interpretation.variation_descriptor.id == "CA123"
+
+def test_variant_falls_back_to_clinvar_id():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "", "clinvarVariantId": "789", "clinvarVariantTitle": "Some variant"}],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
+    assert interps[0].variant_interpretation.variation_descriptor.id == "789"
+
+def test_variant_gene_context_set_when_gene_in_title():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(DSG2):c.1A>T"}],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert vd.gene_context.value_id == "HGNC:3049"
+    assert vd.gene_context.symbol == "DSG2"
+
+def test_variant_gene_context_omitted_when_gene_not_in_title():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(OTHER):c.1A>T"}],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert vd.gene_context.value_id == ""  # not set
+
+def test_variant_allelic_state_set_when_zygosity_present():
+    ind = {
+        "recessiveZygosity": "Homozygous",
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert vd.allelic_state.id == "GENO:0000136"
+
+def test_variant_no_variants_returns_empty():
+    ind = {"recessiveZygosity": None, "variants": []}
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
+    assert interps == []
