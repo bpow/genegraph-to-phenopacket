@@ -246,7 +246,7 @@ def build_phenopacket(file_index: int, annotation_index: int,
     ts.GetCurrentTime()
     meta_data = pps2.MetaData(
         created=ts,
-        resources=RESOURCE_METADATA,
+        resources=list(RESOURCE_METADATA),
         phenopacket_schema_version="2.0",
     )
 
