@@ -63,7 +63,7 @@ def main():
             gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
             hgnc_id = gdm.get("gene", {}).get("hgncId", "")
 
-            for annotation_index, annotation in enumerate(gdm.get("annotations", [])):
+            for annotation_index, annotation in enumerate(gdm.get("annotations") or []):
                 pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
                 title = annotation.get("article", {}).get("title", "")
 

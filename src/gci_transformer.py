@@ -93,18 +93,18 @@ def collect_individuals(annotation: dict):
     Yield (individual_dict, tag) for all individuals in an annotation.
     tag is "i" (direct), "f" (family), or "g" (group/group-family).
     """
-    for ind in annotation.get("individuals", []):
+    for ind in annotation.get("individuals") or []:
         yield ind, "i"
 
-    for family in annotation.get("families", []):
-        for ind in family.get("individualIncluded", []):
+    for family in annotation.get("families") or []:
+        for ind in family.get("individualIncluded") or []:
             yield ind, "f"
 
-    for group in annotation.get("groups", []):
-        for ind in group.get("individualIncluded", []):
+    for group in annotation.get("groups") or []:
+        for ind in group.get("individualIncluded") or []:
             yield ind, "g"
-        for family in group.get("familyIncluded", []):
-            for ind in family.get("individualIncluded", []):
+        for family in group.get("familyIncluded") or []:
+            for ind in family.get("individualIncluded") or []:
                 yield ind, "g"
 
 
