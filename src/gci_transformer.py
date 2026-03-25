@@ -1,5 +1,6 @@
 # src/gci_transformer.py
 import math
+import re
 import logging
 import phenopackets.schema.v2 as pps2
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -46,6 +47,12 @@ AGE_UNIT_MAP = {
 def sanitize_label(label: str) -> str:
     """Replace spaces with _ and colons with - for safe use in IDs/filenames."""
     return label.replace(" ", "_").replace(":", "-")
+
+
+def extract_hpo_id(raw: str) -> str:
+    """Extract bare HP:XXXXXXX from strings like 'Seizures (HP:0001250)' or plain 'HP:0001250'."""
+    match = re.search(r'HP:\d+', raw)
+    return match.group(0) if match else raw
 
 
 def mondo_id_to_colon(disease_id: str) -> str:
@@ -157,14 +164,14 @@ def build_phenotypic_features(individual: dict, pmid: str, article_title: str, o
     """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
     features = []
     for hpo_id in individual.get("hpoIdInDiagnosis", []):
-        mapped = om.hpo_to_labeled_phenotype(hpo_id)
+        mapped = om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
         features.append(pps2.PhenotypicFeature(
             type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
             excluded=False,
             evidence=_make_evidence(pmid, article_title),
         ))
     for hpo_id in individual.get("hpoIdInElimination", []):
-        mapped = om.hpo_to_labeled_phenotype(hpo_id)
+        mapped = om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
         features.append(pps2.PhenotypicFeature(
             type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
             excluded=True,
