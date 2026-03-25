@@ -188,3 +188,44 @@ def test_build_subject_gestational_age():
     subj = build_subject("1", "X", ind)
     assert subj.time_at_last_encounter.gestational_age.weeks == 38
     assert subj.time_at_last_encounter.gestational_age.days == 4
+
+
+from unittest.mock import MagicMock
+from gci_transformer import build_phenotypic_features
+
+def _make_om():
+    """Mock OntologyManager — returns predictable HPO labels."""
+    om = MagicMock()
+    om.hpo_to_labeled_phenotype.side_effect = lambda hpo_id: {
+        "id": hpo_id, "label": f"Label for {hpo_id}"
+    }
+    return om
+
+def test_phenotypic_features_diagnosis_not_excluded():
+    ind = {"hpoIdInDiagnosis": ["HP:0001942"], "hpoIdInElimination": []}
+    features = build_phenotypic_features(ind, "12345", "Article title", _make_om())
+    assert len(features) == 1
+    assert features[0].type.id == "HP:0001942"
+    assert features[0].excluded is False
+
+def test_phenotypic_features_elimination_excluded():
+    ind = {"hpoIdInDiagnosis": [], "hpoIdInElimination": ["HP:0001903"]}
+    features = build_phenotypic_features(ind, "12345", "Title", _make_om())
+    assert len(features) == 1
+    assert features[0].excluded is True
+
+def test_phenotypic_features_combined():
+    ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": ["HP:0002"]}
+    features = build_phenotypic_features(ind, "12345", "Title", _make_om())
+    assert len(features) == 2
+    excluded_flags = {f.type.id: f.excluded for f in features}
+    assert excluded_flags["HP:0001"] is False
+    assert excluded_flags["HP:0002"] is True
+
+def test_phenotypic_features_evidence_populated():
+    ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
+    features = build_phenotypic_features(ind, "99999", "My Article", _make_om())
+    ev = features[0].evidence[0]
+    assert ev.reference.id == "PMID:99999"
+    assert ev.reference.description == "My Article"
+    assert ev.evidence_code.id == "ECO:0006017"
