@@ -98,3 +98,11 @@ def collect_individuals(annotation: dict):
         for family in group.get("familyIncluded", []):
             for ind in family.get("individualIncluded", []):
                 yield ind, "g"
+
+
+def passes_filter(individual: dict) -> bool:
+    """Return True only if individual is a proband with at least one HPO term."""
+    if individual.get("is_proband") != "Yes":
+        return False
+    has_hpo = bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
+    return has_hpo

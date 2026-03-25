@@ -119,3 +119,26 @@ def test_collect_empty_annotation():
 def test_collect_annotation_with_absent_keys():
     # Annotation dict with no keys at all should yield nothing, not raise
     assert list(collect_individuals({})) == []
+
+
+from gci_transformer import passes_filter
+
+def test_passes_filter_proband_with_hpo():
+    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
+    assert passes_filter(ind) is True
+
+def test_passes_filter_proband_with_elimination_only():
+    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": [], "hpoIdInElimination": ["HP:0001"]}
+    assert passes_filter(ind) is True
+
+def test_passes_filter_not_proband():
+    ind = {"is_proband": "No", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
+    assert passes_filter(ind) is False
+
+def test_passes_filter_proband_no_hpo():
+    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": [], "hpoIdInElimination": []}
+    assert passes_filter(ind) is False
+
+def test_passes_filter_missing_is_proband():
+    ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
+    assert passes_filter(ind) is False
