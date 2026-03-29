@@ -233,12 +233,23 @@ def test_phenotypic_features_evidence_populated():
 
 from gci_transformer import build_genomic_interpretations
 
+def _make_geno_om():
+    om = MagicMock()
+    om.geno_lookup = {
+        "homozygous":            "GENO:0000136",
+        "heterozygous":          "GENO:0000135",
+        "compound heterozygous": "GENO:0000402",
+        "hemizygous":            "GENO:0000134",
+        "unspecified zygosity":  "GENO:0000137",
+    }
+    return om
+
 def test_variant_uses_carid_when_available():
     ind = {
         "recessiveZygosity": None,
         "variants": [{"carId": "CA123", "clinvarVariantId": "456", "clinvarVariantTitle": "NM_001.1(GENE):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1", _make_geno_om())
     assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA123"
 
 def test_variant_falls_back_to_clinvar_id():
@@ -246,7 +257,7 @@ def test_variant_falls_back_to_clinvar_id():
         "recessiveZygosity": None,
         "variants": [{"carId": "", "clinvarVariantId": "789", "clinvarVariantTitle": "Some variant"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1", _make_geno_om())
     assert interps[0].variant_interpretation.variation_descriptor.id == "clinvar:789"
 
 def test_variant_gene_context_set_when_gene_in_title():
@@ -254,7 +265,7 @@ def test_variant_gene_context_set_when_gene_in_title():
         "recessiveZygosity": None,
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(DSG2):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", _make_geno_om())
     vd = interps[0].variant_interpretation.variation_descriptor
     assert vd.gene_context.value_id == "HGNC:3049"
     assert vd.gene_context.symbol == "DSG2"
@@ -264,7 +275,7 @@ def test_variant_gene_context_omitted_when_gene_not_in_title():
         "recessiveZygosity": None,
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(OTHER):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", _make_geno_om())
     vd = interps[0].variant_interpretation.variation_descriptor
     assert not vd.HasField("gene_context")
 
@@ -273,13 +284,13 @@ def test_variant_allelic_state_set_when_zygosity_present():
         "recessiveZygosity": "Homozygous",
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", _make_geno_om())
     vd = interps[0].variant_interpretation.variation_descriptor
     assert vd.allelic_state.id == "GENO:0000136"
 
 def test_variant_no_variants_returns_empty():
     ind = {"recessiveZygosity": None, "variants": []}
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", _make_geno_om())
     assert interps == []
 
 
@@ -289,6 +300,13 @@ def _make_om_with_mondo():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
     om.mondo_lookup = {"MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy"}
+    om.geno_lookup = {
+        "homozygous":            "GENO:0000136",
+        "heterozygous":          "GENO:0000135",
+        "compound heterozygous": "GENO:0000402",
+        "hemizygous":            "GENO:0000134",
+        "unspecified zygosity":  "GENO:0000137",
+    }
     return om
 
 def _base_individual():
