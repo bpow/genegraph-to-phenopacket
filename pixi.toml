@@ -7,12 +7,12 @@ version = "0.1.0"
 
 [tasks]
 data_transform = "python -m src.main"
+test = "pytest tests/ -v"
 
 [dependencies]
 python = ">=3.10,<3.13"
 jupyterlab = ">=4.2.5,<5"
 pyld = ">=2.0.4,<3"
-jsonpath-ng = ">=1.6.1,<2"
 jupyterlab-git = ">=0.50.1,<0.51"
 pronto = ">=2.7.3,<3"
 requests = ">=2.32.5,<3"
@@ -20,3 +20,5 @@ requests = ">=2.32.5,<3"
 [pypi-dependencies]
 phenopackets = ">=2.0.2.post5, <3"
 hpo3 = "*"
+pytest = ">=8.0, <10"
+pytest-mock = ">=3.14, <4"
