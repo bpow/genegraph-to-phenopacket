@@ -42,7 +42,6 @@ def main():
         return
 
     total_written = 0
-    skipped_not_proband = 0
     skipped_no_hpo = 0
 
     with open(args.input, encoding="utf-8") as f:
@@ -69,15 +68,11 @@ def main():
                 title = annotation.get("article", {}).get("title", "")
 
                 for individual, tag in collect_individuals(annotation):
-                    is_proband = individual.get("is_proband") == "Yes"
                     has_hpo = bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
 
-                    if not is_proband:
-                        skipped_not_proband += 1
-                        continue
                     if not has_hpo:
                         skipped_no_hpo += 1
-                        logger.debug(f"Skipped (proband, no HPO): {individual.get('label')} — PMID {pmid}")
+                        logger.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
                         continue
 
                     try:
@@ -96,8 +91,7 @@ def main():
 
     logger.info(
         f"Done. Written: {total_written} | "
-        f"Skipped (not proband): {skipped_not_proband} | "
-        f"Skipped (proband, no HPO): {skipped_no_hpo}"
+        f"Skipped (no HPO): {skipped_no_hpo}"
     )
 
 
