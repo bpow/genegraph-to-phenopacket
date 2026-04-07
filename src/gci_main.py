@@ -48,8 +48,11 @@ def main():
 
     with f_in:
         for file_index, line in enumerate(f_in):
-            if args.record is not None and file_index != args.record:
-                continue
+            if args.record is not None:
+                if file_index < args.record:
+                    continue
+                elif file_index > args.record:
+                    break
 
             line = line.strip()
             if not line:
