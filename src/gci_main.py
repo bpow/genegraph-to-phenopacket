@@ -1,6 +1,7 @@
 # src/gci_main.py
 import json
 import argparse
+import sys
 from pathlib import Path
 from google.protobuf.json_format import MessageToJson
 
@@ -13,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="GCI Snapshot to Phenopacket Transformer")
     parser.add_argument("--input", "-i", type=Path,
                         default=Path("data/gci/gci_snapshot_2026-03-11.jsonl"),
-                        help="Path to input JSONL file")
+                        help="Path to input JSONL file, or '-' to read from stdin")
     parser.add_argument("--output", "-o", type=Path,
                         default=Path("data/output"),
                         help="Directory for output Phenopacket JSON files")
@@ -26,9 +27,13 @@ def main():
     args = parse_args()
     logger = setup_logger(Path("logs"))
 
-    if not args.input.exists():
-        logger.error(f"Input file not found: {args.input}")
-        return
+    if str(args.input) == "-":
+        f_in = sys.stdin
+    else:
+        if not args.input.exists():
+            logger.error(f"Input file not found: {args.input}")
+            return
+        f_in = open(args.input, encoding="utf-8")
 
     args.output.mkdir(parents=True, exist_ok=True)
 
@@ -41,8 +46,8 @@ def main():
     total_written = 0
     skipped_no_hpo = 0
 
-    with open(args.input, encoding="utf-8") as f:
-        for file_index, line in enumerate(f):
+    with f_in:
+        for file_index, line in enumerate(f_in):
             if args.record is not None and file_index != args.record:
                 continue
 
