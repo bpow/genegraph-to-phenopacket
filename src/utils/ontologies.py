@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pronto
-from utils.paths import ONTOLOGY_DIR
+
+ONTOLOGY_DIR = Path("data") / "ontologies"
 
 
 class OntologyManager:
@@ -29,6 +32,7 @@ class OntologyManager:
         if name in self.custom_paths:
             return pronto.Ontology(str(self.custom_paths[name]))
 
+        ONTOLOGY_DIR.mkdir(parents=True, exist_ok=True)
         cache_path = ONTOLOGY_DIR / f"{name}.obo"
         if cache_path.exists():
             self.logger.info(f"Loading {name} from cache: {cache_path}")

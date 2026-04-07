@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 from google.protobuf.json_format import MessageToJson
 
-from utils.paths import INPUT_DIR, OUTPUT_DIR, LOG_DIR
 from utils.logger import setup_logger
 from utils.ontologies import OntologyManager
 from gci_transformer import collect_individuals, passes_filter, build_phenopacket
@@ -13,10 +12,10 @@ from gci_transformer import collect_individuals, passes_filter, build_phenopacke
 def parse_args():
     parser = argparse.ArgumentParser(description="GCI Snapshot to Phenopacket Transformer")
     parser.add_argument("--input", "-i", type=Path,
-                        default=INPUT_DIR / "gci_snapshot_2026-03-11.jsonl",
+                        default=Path("data/gci/gci_snapshot_2026-03-11.jsonl"),
                         help="Path to input JSONL file")
     parser.add_argument("--output", "-o", type=Path,
-                        default=OUTPUT_DIR,
+                        default=Path("data/output"),
                         help="Directory for output Phenopacket JSON files")
     parser.add_argument("--record", "-r", type=int, default=None,
                         help="0-based line index to process only one record (for testing)")
@@ -25,7 +24,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logger = setup_logger(LOG_DIR)
+    logger = setup_logger(Path("logs"))
 
     if not args.input.exists():
         logger.error(f"Input file not found: {args.input}")
