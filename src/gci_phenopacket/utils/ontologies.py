@@ -1,11 +1,14 @@
+import os
 import pronto
-from utils.paths import ONTOLOGY_DIR
+from gci_phenopacket.utils.paths import CACHE_DIR
 
 
 class OntologyManager:
     def __init__(self, logger, custom_paths=None):
         self.logger = logger
         self.custom_paths = custom_paths or {}
+
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
         urls = {
             "hp":    "http://purl.obolibrary.org/obo/hp.owl",
@@ -29,7 +32,7 @@ class OntologyManager:
         if name in self.custom_paths:
             return pronto.Ontology(str(self.custom_paths[name]))
 
-        cache_path = ONTOLOGY_DIR / f"{name}.obo"
+        cache_path = CACHE_DIR / f"{name}.obo"
         if cache_path.exists():
             self.logger.info(f"Loading {name} from cache: {cache_path}")
             return pronto.Ontology(str(cache_path))
@@ -37,8 +40,10 @@ class OntologyManager:
         self.logger.info(f"Downloading {name} from remote...")
         onto = pronto.Ontology(url)
         self.logger.info(f"Saving {name} to cache...")
-        with open(cache_path, "wb") as f:
+        tmp_path = cache_path.with_suffix(".obo.tmp")
+        with open(tmp_path, "wb") as f:
             onto.dump(f, format="obo")
+        os.replace(tmp_path, cache_path)
         return onto
 
     def hpo_to_labeled_phenotype(self, hpo_id):

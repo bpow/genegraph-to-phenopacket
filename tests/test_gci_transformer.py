@@ -1,5 +1,5 @@
 # tests/test_gci_transformer.py
-from gci_transformer import sanitize_label, mondo_id_to_colon, build_iso8601_age
+from gci_phenopacket.transformer import sanitize_label, mondo_id_to_colon, build_iso8601_age
 
 
 def test_sanitize_label_spaces():
@@ -55,7 +55,7 @@ def test_build_iso8601_age_float_truncated():
 
 def test_build_iso8601_age_unknown_unit_logs_warning(caplog):
     import logging
-    with caplog.at_level(logging.WARNING, logger="gci_transformer"):
+    with caplog.at_level(logging.WARNING, logger="gci_phenopacket.transformer"):
         build_iso8601_age(5, "Decades")
     assert "Unrecognized ageUnit" in caplog.text
 
@@ -63,7 +63,7 @@ def test_build_iso8601_age_none_unit_returns_none():
     assert build_iso8601_age(5, None) is None
 
 
-from gci_transformer import collect_individuals
+from gci_phenopacket.transformer import collect_individuals
 
 def _make_individual(label):
     return {"label": label, "is_proband": "Yes"}
@@ -121,7 +121,7 @@ def test_collect_annotation_with_absent_keys():
     assert list(collect_individuals({})) == []
 
 
-from gci_transformer import passes_filter
+from gci_phenopacket.transformer import passes_filter
 
 def test_passes_filter_proband_with_hpo():
     ind = {"is_proband": "Yes", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
@@ -145,7 +145,7 @@ def test_passes_filter_missing_is_proband():
 
 
 import phenopackets.schema.v2 as pps2
-from gci_transformer import build_subject
+from gci_phenopacket.transformer import build_subject
 
 def test_build_subject_male():
     ind = {"sex": "Male", "ageType": "Onset", "ageUnit": "Years", "ageValue": 41}
@@ -191,7 +191,7 @@ def test_build_subject_gestational_age():
 
 
 from unittest.mock import MagicMock
-from gci_transformer import build_phenotypic_features
+from gci_phenopacket.transformer import build_phenotypic_features
 
 def _make_om():
     """Mock OntologyManager — returns predictable HPO labels."""
@@ -231,7 +231,7 @@ def test_phenotypic_features_evidence_populated():
     assert ev.evidence_code.id == "ECO:0000304"
 
 
-from gci_transformer import build_genomic_interpretations
+from gci_phenopacket.transformer import build_genomic_interpretations
 
 def _make_geno_om():
     om = MagicMock()
@@ -294,7 +294,7 @@ def test_variant_no_variants_returns_empty():
     assert interps == []
 
 
-from gci_transformer import build_phenopacket
+from gci_phenopacket.transformer import build_phenopacket
 
 def _make_om_with_mondo():
     om = MagicMock()

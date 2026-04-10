@@ -1,4 +1,4 @@
-# src/gci_transformer.py
+# src/gci_phenopacket/transformer.py
 import math
 import re
 import logging

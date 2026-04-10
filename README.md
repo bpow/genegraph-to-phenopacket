@@ -5,61 +5,92 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces **GA4GH P
 ## Project Structure
 
 ```
-src/
-  gci_main.py          # CLI entry point and JSONL processing loop
-  gci_transformer.py   # All GCI → Phenopacket field mapping logic
+src/gci_phenopacket/
+  cli.py               # Click CLI entry point and JSONL processing loop
+  transformer.py       # All GCI → Phenopacket field mapping logic
   utils/
-    ontologies.py      # OntologyManager: HPO and Mondo label lookups
-    logger.py          # Logging setup
-    paths.py           # Project root resolution
+    ontologies.py      # OntologyManager: HP, Mondo, GENO via pronto (cached)
+    logger.py          # Stdout logging setup
+    paths.py           # Platform cache directory via platformdirs
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
 
 data/
   gci/                 # Input JSONL snapshots
-  output/              # Generated Phenopacket JSON files
 ```
 
 ## Requirements
 
-- [Pixi](https://pixi.sh) for environment management
+- [Pixi](https://pixi.sh) for environment management, **or**
+- `pip install .` to install as a standalone package
 
 ## Getting Started
 
-Install dependencies:
+**Option 1 — Pixi (development):**
 
 ```bash
 pixi install
+pixi run gci_transform
+```
+
+**Option 2 — pip (install globally, run from any directory):**
+
+```bash
+pip install .
+gci-transform
 ```
 
 ## Running the Pipeline
 
-**Process the full JSONL snapshot:**
+**Prompt for input path if not supplied:**
 
 ```bash
-pixi run gci_transform
+gci-transform
+# Path to input JSONL file: /path/to/snapshot.jsonl
+```
+
+**Provide input explicitly (output defaults to `./gci_phenopackets/` in the current directory):**
+
+```bash
+gci-transform --input /path/to/gci_snapshot.jsonl
+```
+
+**Custom output directory:**
+
+```bash
+gci-transform --input /path/to/gci_snapshot.jsonl --output /path/to/output/
 ```
 
 **Process a single record by 0-based line index (useful for testing):**
 
 ```bash
-pixi run gci_transform --record 0
+gci-transform --input /path/to/gci_snapshot.jsonl --record 0
 ```
 
-**Specify custom input/output paths:**
+**Pipe logs to a file:**
 
 ```bash
-pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --output data/output/
+gci-transform --input /path/to/gci_snapshot.jsonl > run.log
 ```
 
-Output files are written to `data/output/` by default. Each file is named after its Phenopacket ID:
+Output files are named after their Phenopacket ID:
 
 ```
 {file_index}_{annotation_index}_{gene_symbol}_{mondo_id}_{pmid}_{individual_label}_{tag}.json
 ```
 
 For example: `0_0_DSG2_MONDO_0016587_16505173_Patient_1_g.json`
+
+## Ontology Cache
+
+Ontologies (HP, Mondo, GENO) are downloaded on first run and cached locally so subsequent runs are fast:
+
+| Platform | Cache location |
+|---|---|
+| macOS | `~/Library/Caches/gci-phenopacket/ontologies/` |
+| Linux | `~/.cache/gci-phenopacket/ontologies/` |
+| Windows | `%LOCALAPPDATA%\gci-phenopacket\Cache\ontologies\` |
 
 ## Individual Filtering
 
@@ -68,12 +99,12 @@ Only proband individuals with at least one HPO term are converted. An individual
 1. `is_proband == "Yes"`
 2. At least one of `hpoIdInDiagnosis` or `hpoIdInElimination` is non-empty
 
-All others are silently skipped.
+All others are skipped.
 
 ## Running Tests
 
 ```bash
-pixi run python -m pytest tests/ -v
+PYTHONPATH=src pixi run python -m pytest tests/ -v
 ```
 
 ## Input Format

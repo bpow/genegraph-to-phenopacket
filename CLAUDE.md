@@ -11,33 +11,43 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 
 | File | Purpose |
 |---|---|
-| `src/gci_main.py` | CLI entry point, JSONL loop, output writing |
-| `src/gci_transformer.py` | All GCI → Phenopacket field mapping logic |
-| `src/utils/ontologies.py` | OntologyManager: HPO (pyhpo) + Mondo (pronto) lookups |
-| `src/utils/logger.py` | Logging setup |
-| `src/utils/paths.py` | `get_project_root()` only |
+| `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
+| `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
+| `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo + GENO via pronto, disk cache |
+| `src/gci_phenopacket/utils/logger.py` | Stdout-only logging setup |
+| `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
 | `tests/test_gci_transformer.py` | Unit tests (56 tests) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
+| `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |
-| `data/output/gci_phenopackets/` | Generated Phenopacket JSON files |
 
 ## Running the Pipeline
 
 ```bash
-# Full run
+# Full run (prompts for --input if omitted)
 pixi run gci_transform
 
-# Single record (0-based line index)
-pixi run gci_transform --record 0
+# With explicit input (output defaults to ./gci_phenopackets/ in cwd)
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl
 
-# Custom paths
-pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --output data/output/gci_phenopackets/
+# Custom output directory
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --output /path/to/output/
+
+# Single record (0-based line index)
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --record 0
+
+# Pipe logs to a file
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl > run.log
+
+# Once installed as a package (from any directory)
+pip install .
+gci-transform --input /path/to/snapshot.jsonl
 ```
 
 ## Running Tests
 
 ```bash
-pixi run python -m pytest tests/ -v
+PYTHONPATH=src pixi run python -m pytest tests/ -v
 ```
 
 ## Design Docs
@@ -54,15 +64,16 @@ pixi run python -m pytest tests/ -v
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
 - Phenopacket ID format: `{file_index}_{annotation_index}_{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{tag}`
+- Ontologies (HP, Mondo, GENO) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS)
 
 ## Environment
 
 - Package manager: [Pixi](https://pixi.sh)
 - Python: 3.12
-- Key dependencies: `phenopackets>=2.0.2.post5`, `pyhpo`, `pronto`, `pytest`
+- Key dependencies: `phenopackets>=2.0.2.post5`, `pronto`, `click`, `platformdirs`, `pytest`
 
 ## Conventions
 
 - Do not auto-commit — always ask before committing
 - Run all tests before committing any change
-- Use `pixi run python -m pytest` not bare `pytest`
+- Use `PYTHONPATH=src pixi run python -m pytest` not bare `pytest`

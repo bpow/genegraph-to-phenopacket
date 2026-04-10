@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gci-phenopacket"
+version = "0.1.0"
+description = "Transform ClinGen GCI proband data into GA4GH Phenopackets"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "platformdirs>=4.0",
+    "phenopackets>=2.0.2.post5",
+    "pronto>=2.7",
+    "requests>=2.32",
+]
+
+[project.scripts]
+gci-transform = "gci_phenopacket.cli:main"
+
+[tool.hatch.build.targets.wheel]
+sources = ["src"]
+packages = ["src/gci_phenopacket"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
