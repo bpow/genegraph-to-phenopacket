@@ -16,7 +16,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 | `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo + GENO via pronto, disk cache |
 | `src/gci_phenopacket/utils/logger.py` | Stdout-only logging setup |
 | `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
-| `tests/test_gci_transformer.py` | Unit tests (56 tests) |
+| `tests/test_gci_transformer.py` | Unit tests (68 tests across 4 test files) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |
@@ -47,7 +47,7 @@ gci-transform --input /path/to/snapshot.jsonl
 ## Running Tests
 
 ```bash
-PYTHONPATH=src pixi run python -m pytest tests/ -v
+pixi run test
 ```
 
 ## Design Docs
@@ -76,4 +76,4 @@ PYTHONPATH=src pixi run python -m pytest tests/ -v
 
 - Do not auto-commit — always ask before committing
 - Run all tests before committing any change
-- Use `PYTHONPATH=src pixi run python -m pytest` not bare `pytest`
+- Use `pixi run test` not bare `pytest`

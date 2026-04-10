@@ -104,7 +104,7 @@ All others are skipped.
 ## Running Tests
 
 ```bash
-PYTHONPATH=src pixi run python -m pytest tests/ -v
+pixi run test
 ```
 
 ## Input Format

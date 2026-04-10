@@ -6,7 +6,8 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 version = "0.1.0"
 
 [tasks]
-gci_transform = "python -m gci_phenopacket.cli"
+gci_transform = {cmd = "python -m gci_phenopacket.cli", env = {PYTHONPATH = "src"}}
+test = {cmd = "python -m pytest tests/ -v", env = {PYTHONPATH = "src"}}
 
 [dependencies]
 python = ">=3.10,<3.13"
