@@ -42,7 +42,6 @@ def main(input_path, output_path, record):
         raise SystemExit(1)
 
     total_written = 0
-    skipped_not_proband = 0
     skipped_no_hpo = 0
 
     with open(input_path, encoding="utf-8") as f:
@@ -69,11 +68,6 @@ def main(input_path, output_path, record):
                 title = annotation.get("article", {}).get("title", "")
 
                 for individual, tag in collect_individuals(annotation):
-                    if individual.get("is_proband") != "Yes":
-                        skipped_not_proband += 1
-                        logger.debug(f"Skipped (not proband): {individual.get('label')} — PMID {pmid}")
-                        continue
-
                     if not passes_filter(individual):
                         skipped_no_hpo += 1
                         logger.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
@@ -98,8 +92,7 @@ def main(input_path, output_path, record):
 
     logger.info(
         f"Done. Written: {total_written} | "
-        f"Skipped (not proband): {skipped_not_proband} | "
-        f"Skipped (proband, no HPO): {skipped_no_hpo}"
+        f"Skipped (no HPO): {skipped_no_hpo}"
     )
 
 

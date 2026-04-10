@@ -76,7 +76,7 @@ def test_collect_direct_individuals():
     }
     results = list(collect_individuals(annotation))
     assert len(results) == 2
-    assert all(tag == "i" for _, tag in results)
+    assert all(tag == "individual" for _, tag in results)
     assert [ind["label"] for ind, _ in results] == ["A", "B"]
 
 def test_collect_family_individuals():
@@ -87,7 +87,7 @@ def test_collect_family_individuals():
     }
     results = list(collect_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "f"
+    assert results[0][1] == "family"
 
 def test_collect_group_direct_individuals():
     annotation = {
@@ -97,7 +97,7 @@ def test_collect_group_direct_individuals():
     }
     results = list(collect_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "g"
+    assert results[0][1] == "group"
 
 def test_collect_group_family_individuals():
     annotation = {
@@ -110,7 +110,7 @@ def test_collect_group_family_individuals():
     }
     results = list(collect_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "g"
+    assert results[0][1] == "group"
 
 def test_collect_empty_annotation():
     annotation = {"individuals": [], "families": [], "groups": []}
@@ -131,17 +131,17 @@ def test_passes_filter_proband_with_elimination_only():
     ind = {"is_proband": "Yes", "hpoIdInDiagnosis": [], "hpoIdInElimination": ["HP:0001"]}
     assert passes_filter(ind) is True
 
-def test_passes_filter_not_proband():
+def test_passes_filter_non_proband_with_hpo():
     ind = {"is_proband": "No", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
+    assert passes_filter(ind) is True
+
+def test_passes_filter_no_hpo():
+    ind = {"hpoIdInDiagnosis": [], "hpoIdInElimination": []}
     assert passes_filter(ind) is False
 
-def test_passes_filter_proband_no_hpo():
-    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": [], "hpoIdInElimination": []}
-    assert passes_filter(ind) is False
-
-def test_passes_filter_missing_is_proband():
+def test_passes_filter_missing_is_proband_with_hpo():
     ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
-    assert passes_filter(ind) is False
+    assert passes_filter(ind) is True
 
 
 import phenopackets.schema.v2 as pps2

@@ -94,26 +94,23 @@ def collect_individuals(annotation: dict):
     tag is "i" (direct), "f" (family), or "g" (group/group-family).
     """
     for ind in annotation.get("individuals") or []:
-        yield ind, "i"
+        yield ind, "individual"
 
     for family in annotation.get("families") or []:
         for ind in family.get("individualIncluded") or []:
-            yield ind, "f"
+            yield ind, "family"
 
     for group in annotation.get("groups") or []:
         for ind in group.get("individualIncluded") or []:
-            yield ind, "g"
+            yield ind, "group"
         for family in group.get("familyIncluded") or []:
             for ind in family.get("individualIncluded") or []:
-                yield ind, "g"
+                yield ind, "group"
 
 
 def passes_filter(individual: dict) -> bool:
-    """Return True only if individual is a proband with at least one HPO term."""
-    if individual.get("is_proband") != "Yes":
-        return False
-    has_hpo = bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
-    return has_hpo
+    """Return True only if an individual has at least one HPO term."""
+    return bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
 
 
 def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
