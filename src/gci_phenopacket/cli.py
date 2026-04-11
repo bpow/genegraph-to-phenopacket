@@ -1,4 +1,5 @@
 import json
+import itertools
 from pathlib import Path
 
 import click
@@ -45,10 +46,12 @@ def main(input_path, output_path, record):
     skipped_no_hpo = 0
 
     with open(input_path, encoding="utf-8") as f:
-        for file_index, line in enumerate(f):
-            if record is not None and file_index != record:
-                continue
+        if record is not None:
+            file_iter = enumerate(itertools.islice(f, record, record + 1), start=record)
+        else:
+            file_iter = enumerate(f)
 
+        for file_index, line in file_iter:
             line = line.strip()
             if not line:
                 continue

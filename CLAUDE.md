@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phenopacket v2 JSON files — one per qualifying proband individual.
+This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phenopacket v2 JSON files — one per qualifying individual with HPO terms.
 
 **Active branch:** `gci-to-phenopacket-2026-03-cc`
 **Remote:** `github.com/bpow/genegraph-to-phenopacket`
@@ -13,7 +13,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 |---|---|
 | `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
 | `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
-| `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo + GENO via pronto, disk cache |
+| `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache (GENO hardcoded) |
 | `src/gci_phenopacket/utils/logger.py` | Stdout-only logging setup |
 | `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
 | `tests/test_gci_transformer.py` | Unit tests (68 tests across 4 test files) |
@@ -57,14 +57,19 @@ pixi run test
 
 ## Key Design Decisions
 
-- Only probands with at least one HPO term are converted (`is_proband == "Yes"` + non-empty `hpoIdInDiagnosis` or `hpoIdInElimination`)
-- GCI stores HPO terms as `"Label (HP:XXXXXXX)"` — `extract_hpo_id()` strips the code before lookup
-- FREETEXT_ or missing disease IDs fall back to `MONDO:0700096` ("human disease")
+- Any individual with at least one HPO term is converted — `is_proband` status is not checked
+- GCI stores HPO terms as `"Label (HP:XXXXXXX)"` — `extract_hpo_id()` strips the label before lookup
+- `FREETEXT_` or missing disease IDs fall back to `MONDO:0700096` ("human disease")
 - Vital status is only set when `ageType == "Death"` — omitted otherwise
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
-- Phenopacket ID format: `{file_index}_{annotation_index}_{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{tag}`
-- Ontologies (HP, Mondo, GENO) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS)
+- Phenopacket ID format: `{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{tag}`
+- Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
+- GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
+- `iter_individuals(annotation)` yields `(individual_dict, tag)` for all nesting levels
+- `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
+- Ontologies (HP, Mondo only) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS)
+- `--record N` jumps directly to line N via `itertools.islice` — does not scan the whole file
 
 ## Environment
 
