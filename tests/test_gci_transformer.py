@@ -288,7 +288,7 @@ from gci_phenopacket.transformer import build_phenopacket
 def _make_om_with_mondo():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
-    om.mondo_lookup = {"MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy"}
+    om.mondo_to_label.side_effect = lambda mid: "arrhythmogenic right ventricular cardiomyopathy" if mid == "MONDO:0016587" else None
     return om
 
 def _base_individual():

@@ -34,7 +34,7 @@ def input_file(tmp_path):
 def mock_om():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.return_value = {"id": "HP:0001250", "label": "Seizure"}
-    om.mondo_lookup = {}
+    om.mondo_to_label.return_value = None
     return om
 
 

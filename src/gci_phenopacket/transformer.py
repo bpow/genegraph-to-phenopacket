@@ -251,7 +251,7 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     # mondo_id for the Phenopacket ID uses underscore form
     mondo_id_for_pp_id = mondo_id.replace(":", "_")
 
-    disease_label = om.mondo_lookup.get(mondo_id, FALLBACK_DISEASE_LABEL)
+    disease_label = om.mondo_to_label(mondo_id) or FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
     pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
