@@ -35,7 +35,6 @@ def mock_om():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.return_value = {"id": "HP:0001250", "label": "Seizure"}
     om.mondo_lookup = {}
-    om.geno_lookup = {}
     return om
 
 

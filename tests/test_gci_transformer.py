@@ -1,5 +1,5 @@
 # tests/test_gci_transformer.py
-from gci_phenopacket.transformer import sanitize_label, mondo_id_to_colon, build_iso8601_age
+from gci_phenopacket.transformer import sanitize_label, resolve_disease, build_iso8601_age
 
 
 def test_sanitize_label_spaces():
@@ -11,17 +11,17 @@ def test_sanitize_label_colons():
 def test_sanitize_label_mixed():
     assert sanitize_label("Proband C:1 test") == "Proband_C-1_test"
 
-def test_mondo_id_to_colon_standard():
-    assert mondo_id_to_colon("MONDO_0016587") == "MONDO:0016587"
+def test_resolve_disease_standard():
+    assert resolve_disease("MONDO_0016587") == "MONDO:0016587"
 
-def test_mondo_id_to_colon_preserves_numeric_part():
-    assert mondo_id_to_colon("MONDO_0700096") == "MONDO:0700096"
+def test_resolve_disease_preserves_numeric_part():
+    assert resolve_disease("MONDO_0700096") == "MONDO:0700096"
 
-def test_mondo_id_to_colon_freetext_returns_default():
-    assert mondo_id_to_colon("FREETEXT_abc123") == "MONDO:0700096"
+def test_resolve_disease_freetext_returns_default():
+    assert resolve_disease("FREETEXT_abc123") == "MONDO:0700096"
 
-def test_mondo_id_to_colon_empty_returns_default():
-    assert mondo_id_to_colon("") == "MONDO:0700096"
+def test_resolve_disease_empty_returns_default():
+    assert resolve_disease("") == "MONDO:0700096"
 
 def test_build_iso8601_age_years():
     assert build_iso8601_age(41, "Years") == ("age", "P41Y")
@@ -63,7 +63,7 @@ def test_build_iso8601_age_none_unit_returns_none():
     assert build_iso8601_age(5, None) is None
 
 
-from gci_phenopacket.transformer import collect_individuals
+from gci_phenopacket.transformer import iter_individuals
 
 def _make_individual(label):
     return {"label": label, "is_proband": "Yes"}
@@ -74,7 +74,7 @@ def test_collect_direct_individuals():
         "families": [],
         "groups": [],
     }
-    results = list(collect_individuals(annotation))
+    results = list(iter_individuals(annotation))
     assert len(results) == 2
     assert all(tag == "individual" for _, tag in results)
     assert [ind["label"] for ind, _ in results] == ["A", "B"]
@@ -85,7 +85,7 @@ def test_collect_family_individuals():
         "families": [{"individualIncluded": [_make_individual("C")]}],
         "groups": [],
     }
-    results = list(collect_individuals(annotation))
+    results = list(iter_individuals(annotation))
     assert len(results) == 1
     assert results[0][1] == "family"
 
@@ -95,7 +95,7 @@ def test_collect_group_direct_individuals():
         "families": [],
         "groups": [{"individualIncluded": [_make_individual("D")], "familyIncluded": []}],
     }
-    results = list(collect_individuals(annotation))
+    results = list(iter_individuals(annotation))
     assert len(results) == 1
     assert results[0][1] == "group"
 
@@ -108,17 +108,17 @@ def test_collect_group_family_individuals():
             "familyIncluded": [{"individualIncluded": [_make_individual("E")]}],
         }],
     }
-    results = list(collect_individuals(annotation))
+    results = list(iter_individuals(annotation))
     assert len(results) == 1
     assert results[0][1] == "group"
 
 def test_collect_empty_annotation():
     annotation = {"individuals": [], "families": [], "groups": []}
-    assert list(collect_individuals(annotation)) == []
+    assert list(iter_individuals(annotation)) == []
 
 def test_collect_annotation_with_absent_keys():
     # Annotation dict with no keys at all should yield nothing, not raise
-    assert list(collect_individuals({})) == []
+    assert list(iter_individuals({})) == []
 
 
 from gci_phenopacket.transformer import passes_filter
@@ -233,23 +233,12 @@ def test_phenotypic_features_evidence_populated():
 
 from gci_phenopacket.transformer import build_genomic_interpretations
 
-def _make_geno_om():
-    om = MagicMock()
-    om.geno_lookup = {
-        "homozygous":            "GENO:0000136",
-        "heterozygous":          "GENO:0000135",
-        "compound heterozygous": "GENO:0000402",
-        "hemizygous":            "GENO:0000134",
-        "unspecified zygosity":  "GENO:0000137",
-    }
-    return om
-
 def test_variant_uses_carid_when_available():
     ind = {
         "recessiveZygosity": None,
         "variants": [{"carId": "CA123", "clinvarVariantId": "456", "clinvarVariantTitle": "NM_001.1(GENE):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
     assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA123"
 
 def test_variant_falls_back_to_clinvar_id():
@@ -257,7 +246,7 @@ def test_variant_falls_back_to_clinvar_id():
         "recessiveZygosity": None,
         "variants": [{"carId": "", "clinvarVariantId": "789", "clinvarVariantTitle": "Some variant"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "Patient1", "GENE", "HGNC:1")
     assert interps[0].variant_interpretation.variation_descriptor.id == "clinvar:789"
 
 def test_variant_gene_context_set_when_gene_in_title():
@@ -265,7 +254,7 @@ def test_variant_gene_context_set_when_gene_in_title():
         "recessiveZygosity": None,
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(DSG2):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
     vd = interps[0].variant_interpretation.variation_descriptor
     assert vd.gene_context.value_id == "HGNC:3049"
     assert vd.gene_context.symbol == "DSG2"
@@ -275,7 +264,7 @@ def test_variant_gene_context_omitted_when_gene_not_in_title():
         "recessiveZygosity": None,
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "NM_001(OTHER):c.1A>T"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049")
     vd = interps[0].variant_interpretation.variation_descriptor
     assert not vd.HasField("gene_context")
 
@@ -284,13 +273,13 @@ def test_variant_allelic_state_set_when_zygosity_present():
         "recessiveZygosity": "Homozygous",
         "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
     }
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
     vd = interps[0].variant_interpretation.variation_descriptor
     assert vd.allelic_state.id == "GENO:0000136"
 
 def test_variant_no_variants_returns_empty():
     ind = {"recessiveZygosity": None, "variants": []}
-    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", _make_geno_om())
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
     assert interps == []
 
 
@@ -300,13 +289,6 @@ def _make_om_with_mondo():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
     om.mondo_lookup = {"MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy"}
-    om.geno_lookup = {
-        "homozygous":            "GENO:0000136",
-        "heterozygous":          "GENO:0000135",
-        "compound heterozygous": "GENO:0000402",
-        "hemizygous":            "GENO:0000134",
-        "unspecified zygosity":  "GENO:0000137",
-    }
     return om
 
 def _base_individual():
@@ -323,43 +305,46 @@ def _base_individual():
         "variants": [],
     }
 
+REC_UUID = "aaaa-1111"
+ANN_UUID = "bbbb-2222"
+
 def test_build_phenopacket_id_format():
-    # Input uses MONDO_0016587; ID should contain the underscore form
-    pp = build_phenopacket(0, 1, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "i", _make_om_with_mondo())
-    assert pp.id == "0_1_DSG2_MONDO_0016587_12345_Test_Patient_i"
+    # ID should use record and annotation UUIDs instead of positional indices
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "individual", _make_om_with_mondo())
+    assert pp.id == "aaaa-1111_bbbb-2222_DSG2_MONDO_0016587_12345_Test_Patient_individual"
 
 def test_build_phenopacket_diagnosis_uses_colon_form():
     # Diagnosis disease.id must use colon format even though ID uses underscore
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "individual", _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_subject_id():
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "f", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "family", _make_om_with_mondo())
     assert pp.subject.id == "PMID_99:Test Patient"
 
 def test_build_phenopacket_freetext_disease_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = [{"diseaseId": "FREETEXT_abc"}]
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", ind, "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
     assert pp.interpretations[0].diagnosis.disease.label == "human disease"
 
 def test_build_phenopacket_empty_diagnosis_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = []
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", ind, "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
 
 def test_build_phenopacket_interpretation_id():
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
     assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
 
 def test_build_phenopacket_metadata_schema_version():
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
     assert pp.meta_data.phenopacket_schema_version == "2.0"
 
 def test_build_phenopacket_metadata_resources_count():
-    pp = build_phenopacket(0, 0, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "i", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
     assert len(pp.meta_data.resources) == 4
     resource_ids = {r.id for r in pp.meta_data.resources}
     assert resource_ids == {"hp", "mondo", "geno", "eco"}

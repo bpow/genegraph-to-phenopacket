@@ -13,17 +13,14 @@ class OntologyManager:
         urls = {
             "hp":    "http://purl.obolibrary.org/obo/hp.owl",
             "mondo": "http://purl.obolibrary.org/obo/mondo.owl",
-            "geno":  "http://purl.obolibrary.org/obo/geno.owl",
         }
 
         self.logger.info("Initializing Ontologies (Checking Cache/Remote)...")
 
         self.hpo   = self._load_ontology("hp",    urls["hp"])
         self.mondo = self._load_ontology("mondo",  urls["mondo"])
-        self.geno  = self._load_ontology("geno",   urls["geno"])
 
-        self.geno_lookup  = {term.name: term.id for term in self.geno.terms()}
-        self.mondo_lookup = {term.id: term.name  for term in self.mondo.terms()}
+        self.mondo_lookup = {term.id: term.name for term in self.mondo.terms()}
 
         self.logger.info("Ontologies successfully loaded and indexed.")
 

@@ -12,13 +12,13 @@ from google.protobuf.timestamp_pb2 import Timestamp
 FALLBACK_DISEASE_ID = "MONDO:0700096"
 FALLBACK_DISEASE_LABEL = "human disease"
 
-GCI_TO_GENO_TERM = {
-    "homozygous":   "homozygous",
-    "heterozygous": "heterozygous",
-    "twotrans":     "compound heterozygous",
-    "hemizygous":   "hemizygous",
+GCI_TO_GENO = {
+    "homozygous":   ("GENO:0000136", "homozygous"),
+    "heterozygous": ("GENO:0000135", "heterozygous"),
+    "twotrans":     ("GENO:0000402", "compound heterozygous"),
+    "hemizygous":   ("GENO:0000134", "hemizygous"),
 }
-GENO_FALLBACK_TERM = "unspecified zygosity"
+GENO_FALLBACK = ("GENO:0000137", "unspecified zygosity")
 
 RESOURCE_METADATA = [
     pps2.Resource(id="hp",    name="Human Phenotype Ontology",        namespace_prefix="HP",    url="http://purl.obolibrary.org/obo/hp.owl"),
@@ -55,7 +55,7 @@ def extract_hpo_id(raw: str) -> str:
     return match.group(0) if match else raw
 
 
-def mondo_id_to_colon(disease_id: str) -> str:
+def resolve_disease(disease_id: str) -> str:
     """Convert 'MONDO_0016587' -> 'MONDO:0016587'. Returns fallback for FREETEXT_ or empty."""
     if not disease_id or disease_id.startswith("FREETEXT_"):
         return FALLBACK_DISEASE_ID
@@ -88,7 +88,7 @@ def build_iso8601_age(age_value, age_unit: str):
     return ("age", template.replace("{n}", str(int(age_value))))
 
 
-def collect_individuals(annotation: dict):
+def iter_individuals(annotation: dict):
     """
     Yield (individual_dict, tag) for all individuals in an annotation.
     tag is "i" (direct), "f" (family), or "g" (group/group-family).
@@ -178,14 +178,16 @@ def build_phenotypic_features(individual: dict, pmid: str, article_title: str, o
 
 
 def build_genomic_interpretations(individual: dict, pmid: str, label: str,
-                                   gene_symbol: str, hgnc_id: str, om) -> list:
+                                   gene_symbol: str, hgnc_id: str) -> list:
     """Build one GenomicInterpretation per variant in the individual."""
     subject_id = f"PMID_{pmid}:{label}"
     zyg = individual.get("recessiveZygosity")
     if zyg:
-        geno_term_name = GCI_TO_GENO_TERM.get(zyg.lower(), GENO_FALLBACK_TERM)
-        geno_id = om.geno_lookup.get(geno_term_name)
-        geno_label = geno_term_name if geno_id else None
+        if zyg.lower() not in GCI_TO_GENO:
+            logging.getLogger(__name__).warning(
+                f"Unrecognized recessiveZygosity '{zyg}' — falling back to unspecified zygosity"
+            )
+        geno_id, geno_label = GCI_TO_GENO.get(zyg.lower(), GENO_FALLBACK)
     else:
         geno_id, geno_label = None, None
 
@@ -230,7 +232,7 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     return results
 
 
-def build_phenopacket(file_index: int, annotation_index: int,
+def build_phenopacket(record_uuid: str, annotation_uuid: str,
                       gene_symbol: str, hgnc_id: str,
                       pmid: str, article_title: str,
                       individual: dict, tag: str, om) -> pps2.Phenopacket:
@@ -245,14 +247,14 @@ def build_phenopacket(file_index: int, annotation_index: int,
         raw_disease_id = diag_list[0]["diseaseId"]
     else:
         raw_disease_id = ""
-    mondo_id = mondo_id_to_colon(raw_disease_id)
+    mondo_id = resolve_disease(raw_disease_id)
     # mondo_id for the Phenopacket ID uses underscore form
     mondo_id_for_pp_id = mondo_id.replace(":", "_")
 
     disease_label = om.mondo_lookup.get(mondo_id, FALLBACK_DISEASE_LABEL)
 
     # Phenopacket ID
-    pp_id = f"{file_index}_{annotation_index}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
+    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
 
     # MetaData
     ts = Timestamp()
@@ -266,7 +268,7 @@ def build_phenopacket(file_index: int, annotation_index: int,
     # Build parts
     subject = build_subject(pmid, label, individual)
     phenotypic_features = build_phenotypic_features(individual, pmid, article_title, om)
-    genomic_interps = build_genomic_interpretations(individual, pmid, label, gene_symbol, hgnc_id, om)
+    genomic_interps = build_genomic_interpretations(individual, pmid, label, gene_symbol, hgnc_id)
 
     interpretation = pps2.Interpretation(
         id=f"{pmid}_{label_s}_{uuid}",

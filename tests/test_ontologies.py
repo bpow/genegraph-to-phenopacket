@@ -26,15 +26,15 @@ def test_load_ontology_uses_custom_path(tmp_path):
     with patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager(
             make_logger(),
-            custom_paths={"hp": fake, "mondo": fake, "geno": fake},
+            custom_paths={"hp": fake, "mondo": fake},
         )
-        # All three loaded via custom path — no URL strings passed
+        # Both loaded via custom path — no URL strings passed
         import gci_phenopacket.utils.ontologies as mod
         from unittest.mock import patch as p2
         with p2.object(mod.pronto, "Ontology", return_value=mock_onto) as mock_pronto:
             om2 = OntologyManager(
                 make_logger(),
-                custom_paths={"hp": fake, "mondo": fake, "geno": fake},
+                custom_paths={"hp": fake, "mondo": fake},
             )
             for c in mock_pronto.call_args_list:
                 assert c == call(str(fake))
@@ -48,7 +48,7 @@ def test_load_ontology_loads_from_cache_when_exists(tmp_path):
 
     with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", tmp_path), \
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto) as mock_pronto:
-        om = OntologyManager(make_logger(), custom_paths={"mondo": tmp_path / "mondo.obo", "geno": tmp_path / "geno.obo"})
+        om = OntologyManager(make_logger(), custom_paths={"mondo": tmp_path / "mondo.obo"})
 
     # hp.obo existed — should have been loaded from path, not URL
     hp_calls = [c for c in mock_pronto.call_args_list if "hp.obo" in str(c)]
@@ -67,7 +67,6 @@ def test_load_ontology_downloads_and_caches_when_no_cache(tmp_path):
     # Cache files should now exist
     assert (tmp_path / "hp.obo").exists()
     assert (tmp_path / "mondo.obo").exists()
-    assert (tmp_path / "geno.obo").exists()
 
 
 def test_hpo_to_labeled_phenotype_normalizes_obo_prefix():

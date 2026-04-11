@@ -6,7 +6,7 @@ from google.protobuf.json_format import MessageToJson
 
 from gci_phenopacket.utils.logger import setup_logger
 from gci_phenopacket.utils.ontologies import OntologyManager
-from gci_phenopacket.transformer import collect_individuals, passes_filter, build_phenopacket
+from gci_phenopacket.transformer import iter_individuals, passes_filter, build_phenopacket
 
 
 @click.command()
@@ -59,15 +59,17 @@ def main(input_path, output_path, record):
                 logger.warning(f"Line {file_index}: JSON parse error — {e}")
                 continue
 
+            record_uuid = rec.get("uuid", "no-uuid")
             gdm = rec.get("resourceParent", {}).get("gdm", {})
             gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
             hgnc_id = gdm.get("gene", {}).get("hgncId", "")
 
-            for annotation_index, annotation in enumerate(gdm.get("annotations") or []):
+            for annotation in gdm.get("annotations") or []:
+                annotation_uuid = annotation.get("uuid", "no-uuid")
                 pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
                 title = annotation.get("article", {}).get("title", "")
 
-                for individual, tag in collect_individuals(annotation):
+                for individual, tag in iter_individuals(annotation):
                     if not passes_filter(individual):
                         skipped_no_hpo += 1
                         logger.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
@@ -75,7 +77,7 @@ def main(input_path, output_path, record):
 
                     try:
                         pp = build_phenopacket(
-                            file_index, annotation_index,
+                            record_uuid, annotation_uuid,
                             gene_symbol, hgnc_id,
                             pmid, title, individual, tag, om,
                         )
@@ -86,7 +88,7 @@ def main(input_path, output_path, record):
                         logger.info(f"Saved: {out_path.name}")
                     except Exception as e:
                         logger.error(
-                            f"Line {file_index}, annotation {annotation_index}, "
+                            f"Line {file_index}, annotation {annotation_uuid}, "
                             f"individual '{individual.get('label')}': {e}"
                         )
 
