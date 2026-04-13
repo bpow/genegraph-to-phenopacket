@@ -1,8 +1,5 @@
 # Data files
-data/input/*.json
-data/output/*.json
-data/raw/
-data/gci
+data/
 
 # Logs
 logs/*.log
