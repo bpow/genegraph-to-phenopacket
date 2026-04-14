@@ -11,8 +11,8 @@ class OntologyManager:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
         urls = {
-            "hp":    "http://purl.obolibrary.org/obo/hp.owl",
-            "mondo": "http://purl.obolibrary.org/obo/mondo.owl",
+            "hp":    "https://purl.obolibrary.org/obo/hp.owl",
+            "mondo": "https://purl.obolibrary.org/obo/mondo.owl",
         }
 
         self.logger.info("Initializing Ontologies (Checking Cache/Remote)...")
@@ -49,11 +49,10 @@ class OntologyManager:
             return None
 
     def hpo_to_labeled_phenotype(self, hpo_id):
-        """Map HPO ID (e.g. 'obo:HP_0001250' or 'HP:0001250') to {id, label}."""
-        normalized = hpo_id.replace("obo:HP_", "HP:").replace("obo:HP:", "HP:")
+        """Map HPO ID (e.g. 'HP:0001250') to {id, label}. Expects bare HP:XXXXXXX form."""
         try:
-            term = self.hpo[normalized]
+            term = self.hpo[hpo_id]
             return {"id": term.id, "label": term.name}
         except Exception as e:
             self.logger.warning(f"Could not resolve HPO label for {hpo_id}: {e}")
-            return {"id": normalized, "label": "Unknown Phenotype"}
+            return {"id": hpo_id, "label": "Unknown Phenotype"}

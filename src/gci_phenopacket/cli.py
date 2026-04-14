@@ -7,7 +7,9 @@ from google.protobuf.json_format import MessageToJson
 
 from gci_phenopacket.utils.logger import setup_logger
 from gci_phenopacket.utils.ontologies import OntologyManager
-from gci_phenopacket.transformer import iter_individuals, passes_filter, build_phenopacket
+from gci_phenopacket.transformer import (
+    AnnotationContext, iter_individuals, passes_filter, build_phenopacket
+)
 
 
 @click.command()
@@ -72,6 +74,15 @@ def main(input_path, output_path, record):
                 pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
                 title = annotation.get("article", {}).get("title", "")
 
+                ctx = AnnotationContext(
+                    record_uuid=record_uuid,
+                    annotation_uuid=annotation_uuid,
+                    gene_symbol=gene_symbol,
+                    hgnc_id=hgnc_id,
+                    pmid=pmid,
+                    article_title=title,
+                )
+
                 for individual, tag in iter_individuals(annotation):
                     if not passes_filter(individual):
                         skipped_no_hpo += 1
@@ -79,11 +90,7 @@ def main(input_path, output_path, record):
                         continue
 
                     try:
-                        pp = build_phenopacket(
-                            record_uuid, annotation_uuid,
-                            gene_symbol, hgnc_id,
-                            pmid, title, individual, tag, om,
-                        )
+                        pp = build_phenopacket(ctx, individual, tag, om)
                         out_path = output_path / f"{pp.id}.json"
                         with open(out_path, "w", encoding="utf-8") as out_f:
                             out_f.write(MessageToJson(pp, indent=2))

@@ -2,6 +2,8 @@
 import math
 import re
 import logging
+from dataclasses import dataclass
+from typing import Protocol
 import phenopackets.schema.v2 as pps2
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -21,9 +23,9 @@ GCI_TO_GENO = {
 GENO_FALLBACK = ("GENO:0000137", "unspecified zygosity")
 
 RESOURCE_METADATA = [
-    pps2.Resource(id="hp",    name="Human Phenotype Ontology",        namespace_prefix="HP",    url="http://purl.obolibrary.org/obo/hp.owl"),
-    pps2.Resource(id="mondo", name="Mondo Disease Ontology",          namespace_prefix="MONDO", url="http://purl.obolibrary.org/obo/mondo.owl"),
-    pps2.Resource(id="geno",  name="Genotype Ontology",               namespace_prefix="GENO",  url="http://purl.obolibrary.org/obo/geno.owl"),
+    pps2.Resource(id="hp",    name="Human Phenotype Ontology",        namespace_prefix="HP",    url="https://purl.obolibrary.org/obo/hp.owl"),
+    pps2.Resource(id="mondo", name="Mondo Disease Ontology",          namespace_prefix="MONDO", url="https://purl.obolibrary.org/obo/mondo.owl"),
+    pps2.Resource(id="geno",  name="Genotype Ontology",               namespace_prefix="GENO",  url="https://purl.obolibrary.org/obo/geno.owl"),
     pps2.Resource(id="eco",   name="Evidence and Conclusion Ontology",namespace_prefix="ECO",   url="https://evidenceontology.org/repo/ECO.owl", iri_prefix="http://purl.obolibrary.org/obo/ECO_"),
 ]
 
@@ -41,27 +43,58 @@ AGE_UNIT_MAP = {
 }
 
 # ---------------------------------------------------------------------------
+# Protocol for ontology manager — allows type-checked mocks in tests
+# ---------------------------------------------------------------------------
+
+class OntologyManagerProtocol(Protocol):
+    def hpo_to_labeled_phenotype(self, hpo_id: str) -> dict[str, str]: ...
+    def mondo_to_label(self, mondo_id: str) -> str | None: ...
+
+
+# ---------------------------------------------------------------------------
+# Context dataclass — groups per-annotation fields to reduce parameter sprawl
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AnnotationContext:
+    record_uuid: str
+    annotation_uuid: str
+    gene_symbol: str
+    hgnc_id: str
+    pmid: str
+    article_title: str
+
+
+# ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
 
 def sanitize_label(label: str) -> str:
-    """Replace spaces with _ and colons with - for safe use in IDs/filenames."""
-    return label.replace(" ", "_").replace(":", "-")
+    """Replace characters unsafe in IDs/filenames with underscores."""
+    return re.sub(r'[ :/\\*?"<>|]', '_', label)
 
 
 def extract_hpo_id(raw: str) -> str:
-    """Extract bare HP:XXXXXXX from strings like 'Seizures (HP:0001250)' or plain 'HP:0001250'."""
-    match = re.search(r'HP:\d+', raw)
+    """Extract bare HP:XXXXXXX from strings like 'Seizures (HP:0001250)' or 'obo:HP_0001250'."""
+    # Normalize obo-prefixed forms before regex search
+    normalized = raw.replace("obo:HP_", "HP:").replace("obo:HP:", "HP:")
+    match = re.search(r'HP:\d+', normalized)
     return match.group(0) if match else raw
 
 
 def resolve_disease(disease_id: str) -> str:
-    """Convert 'MONDO_0016587' -> 'MONDO:0016587'. Returns fallback for FREETEXT_ or empty."""
+    """Convert 'MONDO_0016587' -> 'MONDO:0016587'. Returns fallback for FREETEXT_, non-MONDO, or empty."""
     if not disease_id or disease_id.startswith("FREETEXT_"):
         return FALLBACK_DISEASE_ID
     parts = disease_id.split("_", 1)
     if len(parts) == 2:
-        return f"{parts[0]}:{parts[1]}"
+        prefix, numeric = parts
+        if prefix != "MONDO":
+            logging.getLogger(__name__).warning(
+                f"Unexpected disease prefix {prefix!r} in {disease_id!r} — using fallback"
+            )
+            return FALLBACK_DISEASE_ID
+        return f"MONDO:{numeric}"
     return FALLBACK_DISEASE_ID
 
 
@@ -88,10 +121,15 @@ def build_iso8601_age(age_value, age_unit: str):
     return ("age", template.replace("{n}", str(int(age_value))))
 
 
+def _subject_id(pmid: str, label: str) -> str:
+    """Canonical subject ID used in both Individual and GenomicInterpretation."""
+    return f"PMID_{pmid}:{label}"
+
+
 def iter_individuals(annotation: dict):
     """
     Yield (individual_dict, tag) for all individuals in an annotation.
-    tag is "i" (direct), "f" (family), or "g" (group/group-family).
+    tag is "individual" (direct), "family", or "group".
     """
     for ind in annotation.get("individuals") or []:
         yield ind, "individual"
@@ -121,7 +159,7 @@ def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     age_value = individual.get("ageValue")
 
     kwargs = dict(
-        id=f"PMID_{pmid}:{label}",
+        id=_subject_id(pmid, label),
         sex=sex,
     )
 
@@ -157,7 +195,8 @@ def _make_evidence(pmid: str, article_title: str) -> list:
     )]
 
 
-def build_phenotypic_features(individual: dict, pmid: str, article_title: str, om) -> list:
+def build_phenotypic_features(individual: dict, pmid: str, article_title: str,
+                               om: OntologyManagerProtocol) -> list:
     """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
     features = []
     for hpo_id in individual.get("hpoIdInDiagnosis", []):
@@ -177,10 +216,9 @@ def build_phenotypic_features(individual: dict, pmid: str, article_title: str, o
     return features
 
 
-def build_genomic_interpretations(individual: dict, pmid: str, label: str,
-                                   gene_symbol: str, hgnc_id: str) -> list:
+def build_genomic_interpretations(individual: dict, ctx: AnnotationContext) -> list:
     """Build one GenomicInterpretation per variant in the individual."""
-    subject_id = f"PMID_{pmid}:{label}"
+    subject_id = _subject_id(ctx.pmid, individual.get("label", "Unknown"))
     zyg = individual.get("recessiveZygosity")
     if zyg:
         if zyg.lower() not in GCI_TO_GENO:
@@ -209,10 +247,10 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
             molecule_context=pps2.MoleculeContext.unspecified_molecule_context,
         )
 
-        if gene_symbol and gene_symbol in var_title:
+        if ctx.gene_symbol and re.search(rf'\b{re.escape(ctx.gene_symbol)}\b', var_title):
             vd_kwargs["gene_context"] = pps2.GeneDescriptor(
-                value_id=hgnc_id,
-                symbol=gene_symbol,
+                value_id=ctx.hgnc_id,
+                symbol=ctx.gene_symbol,
             )
 
         if geno_id:
@@ -232,10 +270,9 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     return results
 
 
-def build_phenopacket(record_uuid: str, annotation_uuid: str,
-                      gene_symbol: str, hgnc_id: str,
-                      pmid: str, article_title: str,
-                      individual: dict, tag: str, om) -> pps2.Phenopacket:
+def build_phenopacket(ctx: AnnotationContext, individual: dict, tag: str,
+                      om: OntologyManagerProtocol,
+                      created_ts: Timestamp | None = None) -> pps2.Phenopacket:
     """Assemble a complete Phenopacket from all parts."""
     label = individual.get("label", "Unknown")
     label_s = sanitize_label(label)
@@ -254,24 +291,28 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     disease_label = om.mondo_to_label(mondo_id) or FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
+    pp_id = (
+        f"{ctx.record_uuid}_{ctx.annotation_uuid}_{ctx.gene_symbol}_"
+        f"{mondo_id_for_pp_id}_{ctx.pmid}_{label_s}_{tag}"
+    )
 
     # MetaData
-    ts = Timestamp()
-    ts.GetCurrentTime()
+    if created_ts is None:
+        created_ts = Timestamp()
+        created_ts.GetCurrentTime()
     meta_data = pps2.MetaData(
-        created=ts,
+        created=created_ts,
         resources=list(RESOURCE_METADATA),
         phenopacket_schema_version="2.0",
     )
 
     # Build parts
-    subject = build_subject(pmid, label, individual)
-    phenotypic_features = build_phenotypic_features(individual, pmid, article_title, om)
-    genomic_interps = build_genomic_interpretations(individual, pmid, label, gene_symbol, hgnc_id)
+    subject = build_subject(ctx.pmid, label, individual)
+    phenotypic_features = build_phenotypic_features(individual, ctx.pmid, ctx.article_title, om)
+    genomic_interps = build_genomic_interpretations(individual, ctx)
 
     interpretation = pps2.Interpretation(
-        id=f"{pmid}_{label_s}_{uuid}",
+        id=f"{ctx.pmid}_{label_s}_{uuid}",
         progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
         diagnosis=pps2.Diagnosis(
             disease=pps2.OntologyClass(id=mondo_id, label=disease_label),

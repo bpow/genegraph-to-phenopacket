@@ -16,7 +16,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 | `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache (GENO hardcoded) |
 | `src/gci_phenopacket/utils/logger.py` | Stdout-only logging setup |
 | `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
-| `tests/test_gci_transformer.py` | Unit tests (68 tests across 4 test files) |
+| `tests/test_gci_transformer.py` | Unit tests (76 tests across 4 test files) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |
@@ -58,17 +58,23 @@ pixi run test
 ## Key Design Decisions
 
 - Any individual with at least one HPO term is converted — `is_proband` status is not checked
-- GCI stores HPO terms as `"Label (HP:XXXXXXX)"` — `extract_hpo_id()` strips the label before lookup
-- `FREETEXT_` or missing disease IDs fall back to `MONDO:0700096` ("human disease")
+- GCI stores HPO terms as `"Label (HP:XXXXXXX)"` — `extract_hpo_id()` strips the label (and normalizes `obo:HP_` prefixes) before lookup; `hpo_to_labeled_phenotype()` expects a bare `HP:XXXXXXX` form
+- `FREETEXT_` or missing disease IDs fall back to `MONDO:0700096` ("human disease"); non-MONDO disease prefixes also fall back with a warning
 - Vital status is only set when `ageType == "Death"` — omitted otherwise
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
 - Phenopacket ID format: `{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{tag}`
+- `sanitize_label()` replaces spaces, colons, slashes and other filesystem-unsafe characters with `_`
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
+- Gene-in-variant-title matching uses word-boundary regex (`\bGENE\b`) to avoid false matches on short gene symbols
+- `AnnotationContext` dataclass (`transformer.py`) groups per-annotation fields (record/annotation UUIDs, gene symbol, HGNC ID, PMID, article title); `build_phenopacket(ctx, individual, tag, om)` takes this as its first argument
+- `OntologyManagerProtocol` (in `transformer.py`) is a `typing.Protocol` that declares the `hpo_to_labeled_phenotype` and `mondo_to_label` interface; use it to type the `om` parameter in transformer functions
+- `_subject_id(pmid, label)` is the single source of truth for the `"PMID_{pmid}:{label}"` subject ID format
+- `build_phenopacket` accepts an optional `created_ts: Timestamp | None` — pass a fixed timestamp for reproducible output; defaults to current time
 - `iter_individuals(annotation)` yields `(individual_dict, tag)` for all nesting levels
 - `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
-- Ontologies (HP, Mondo only) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS)
+- Ontologies (HP, Mondo only) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS); downloaded over HTTPS
 - `--record N` jumps directly to line N via `itertools.islice` — does not scan the whole file
 
 ## Environment

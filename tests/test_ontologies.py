@@ -69,8 +69,9 @@ def test_load_ontology_downloads_and_caches_when_no_cache(tmp_path):
     assert (tmp_path / "mondo.obo").exists()
 
 
-def test_hpo_to_labeled_phenotype_normalizes_obo_prefix():
-    """'obo:HP_0001250' is normalized to 'HP:0001250' before lookup."""
+def test_hpo_to_labeled_phenotype_passes_bare_hpo_id_to_ontology():
+    """hpo_to_labeled_phenotype passes the bare HP:XXXXXXX ID directly to the ontology.
+    Normalization of obo: prefixes happens upstream in extract_hpo_id()."""
     mock_term = MagicMock()
     mock_term.id = "HP:0001250"
     mock_term.name = "Seizure"
@@ -82,7 +83,7 @@ def test_hpo_to_labeled_phenotype_normalizes_obo_prefix():
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager(make_logger())
 
-    result = om.hpo_to_labeled_phenotype("obo:HP_0001250")
+    result = om.hpo_to_labeled_phenotype("HP:0001250")
     mock_onto.__getitem__.assert_called_with("HP:0001250")
     assert result == {"id": "HP:0001250", "label": "Seizure"}
 
