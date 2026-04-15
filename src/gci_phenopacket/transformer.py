@@ -191,8 +191,16 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     else:
         geno_id, geno_label = None, None
 
+    variants = individual.get("variants") or []
+    if not variants:
+        variants = [
+            vs["variantScored"]
+            for vs in (individual.get("variantScores") or [])
+            if vs.get("variantScored")
+        ]
+
     results = []
-    for variant in individual.get("variants", []):
+    for variant in variants:
         car_id = variant.get("carId")
         clinvar_id = variant.get("clinvarVariantId", "")
         if car_id:
@@ -243,18 +251,13 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
 
     # Disease
     diag_list = individual.get("diagnosis") or []
-    if diag_list and diag_list[0].get("diseaseId"):
-        raw_disease_id = diag_list[0]["diseaseId"]
-    else:
-        raw_disease_id = ""
+    diag = diag_list[0] if diag_list else {}
+    raw_disease_id = diag.get("diseaseId") or diag.get("PK") or ""
     mondo_id = resolve_disease(raw_disease_id)
-    # mondo_id for the Phenopacket ID uses underscore form
-    mondo_id_for_pp_id = mondo_id.replace(":", "_")
-
     disease_label = om.mondo_to_label(mondo_id) or FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id_for_pp_id}_{pmid}_{label_s}_{tag}"
+    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id.replace(':', '_')}_{pmid}_{label_s}_{tag}"
 
     # MetaData
     ts = Timestamp()

@@ -282,6 +282,42 @@ def test_variant_no_variants_returns_empty():
     interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1")
     assert interps == []
 
+def test_variant_falls_back_to_variant_scores_when_no_variants():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [],
+        "variantScores": [
+            {"variantScored": {"carId": "CA999", "clinvarVariantId": "111", "clinvarVariantTitle": "NM_001(GENE):c.2T>A"}},
+        ],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "GENE", "HGNC:1")
+    assert len(interps) == 1
+    assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA999"
+
+def test_variant_scores_skips_entries_without_variant_scored():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [],
+        "variantScores": [
+            {"variantScored": {"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}},
+            {"score": 0.5},  # no variantScored key
+        ],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "GENE", "HGNC:1")
+    assert len(interps) == 1
+
+def test_variant_prefers_variants_over_variant_scores():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA_DIRECT", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
+        "variantScores": [
+            {"variantScored": {"carId": "CA_SCORE", "clinvarVariantId": "", "clinvarVariantTitle": "Y"}},
+        ],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "GENE", "HGNC:1")
+    assert len(interps) == 1
+    assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA_DIRECT"
+
 
 from gci_phenopacket.transformer import build_phenopacket
 
@@ -334,6 +370,18 @@ def test_build_phenopacket_empty_diagnosis_defaults_to_fallback():
     ind["diagnosis"] = []
     pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
+
+def test_build_phenopacket_diagnosis_uses_pk_when_no_disease_id():
+    ind = _base_individual()
+    ind["diagnosis"] = [{"PK": "MONDO_0016587"}]
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
+
+def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
+    ind = _base_individual()
+    ind["diagnosis"] = [{"diseaseId": "MONDO_0016587", "PK": "MONDO_0054748"}]
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_interpretation_id():
     pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())

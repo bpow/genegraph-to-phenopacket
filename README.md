@@ -131,3 +131,38 @@ resourceParent.gdm.annotations[]
   .groups[].familyIncluded[]
       .individualIncluded[]             → group-family individuals (tag: group)
 ```
+
+## Field Resolution
+
+### Disease
+
+Resolved from `individual.diagnosis[0]` in priority order:
+
+1. `diseaseId` — preferred (e.g. `MONDO_0016587`)
+2. `PK` — fallback primary key when `diseaseId` is absent
+3. If neither is present, or the value is a `FREETEXT_` prefix, defaults to `MONDO:0700096` ("human disease")
+
+`MONDO_XXXXXXX` format is normalised to `MONDO:XXXXXXX` before lookup.
+
+### Variants
+
+Resolved from the individual in priority order:
+
+1. `variants[]` — used directly when present
+2. `variantScores[].variantScored` — fallback when `variants` is empty; each entry's nested `variantScored` dict is treated as a variant
+3. If neither is present, no genomic interpretations are emitted
+
+For each variant, `carId` is preferred for the ID (`caid:CA...`), falling back to `clinvarVariantId` (`clinvar:...`).
+
+### Zygosity
+
+Read from `individual.recessiveZygosity`. Mapped to GENO terms:
+
+| GCI value | GENO term |
+|---|---|
+| `Homozygous` | `GENO:0000136` |
+| `Heterozygous` | `GENO:0000135` |
+| `Hemizygous` | `GENO:0001059` |
+| `Unknown` / unrecognised | `GENO:0000137` (unspecified) |
+
+If `recessiveZygosity` is absent, allelic state is omitted from the phenopacket.
