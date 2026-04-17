@@ -9,6 +9,8 @@ from google.protobuf.timestamp_pb2 import Timestamp
 # Constants
 # ---------------------------------------------------------------------------
 
+LOGGER = logging.getLogger(__name__)
+
 FALLBACK_DISEASE_ID = "MONDO:0700096"
 FALLBACK_DISEASE_LABEL = "human disease"
 
@@ -83,7 +85,7 @@ def build_iso8601_age(age_value, age_unit: str):
         return ("gestational", (weeks, days))
     template = AGE_UNIT_MAP.get(age_unit)
     if template is None:
-        logging.getLogger(__name__).warning(f"Unrecognized ageUnit '{age_unit}' — omitting time_at_last_encounter")
+        LOGGER.warning(f"Unrecognized ageUnit '{age_unit}' — omitting time_at_last_encounter")
         return None
     return ("age", template.replace("{n}", str(int(age_value))))
 
@@ -184,7 +186,7 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     zyg = individual.get("recessiveZygosity")
     if zyg:
         if zyg.lower() not in GCI_TO_GENO:
-            logging.getLogger(__name__).warning(
+            LOGGER.warning(
                 f"Unrecognized recessiveZygosity '{zyg}' — falling back to unspecified zygosity"
             )
         geno_id, geno_label = GCI_TO_GENO.get(zyg.lower(), GENO_FALLBACK)
@@ -258,24 +260,24 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
         disease_id = raw_disease_id.replace("_", ":", 1)
         mondo = om.mondo.get(disease_id)
         if not mondo and raw_disease_label:
-            logging.getLogger(__name__).warning(
+            LOGGER.warning(
                 f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
             )
             disease_label = raw_disease_label
         else:
             disease_label = mondo.name
             if disease_label != raw_disease_label:
-                logging.getLogger(__name__).warning(
+                LOGGER.warning(
                     f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
                 )
     elif preserve_freetext:
-        logging.getLogger(__name__).warning(
+        LOGGER.warning(
             f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
         )
         disease_id = raw_disease_id
         disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
     else:
-        logging.getLogger(__name__).warning(
+        LOGGER.warning(
             f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
         )
         disease_id = FALLBACK_DISEASE_ID
