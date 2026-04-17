@@ -13,8 +13,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 |---|---|
 | `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
 | `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
-| `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache (GENO hardcoded) |
-| `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
+| `src/gci_phenopacket/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache; `CACHE_DIR` via platformdirs |
 | `tests/test_gci_transformer.py` | Unit tests (over 60 tests across 4 test files) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
@@ -81,3 +80,4 @@ pixi run test
 - Do not auto-commit — always ask before committing
 - Run all tests before committing any change
 - Use `pixi run test` not bare `pytest`
+- Update CLAUDE.md (Key Files table, Key Design Decisions) whenever files are moved, renamed, deleted, or their responsibilities change

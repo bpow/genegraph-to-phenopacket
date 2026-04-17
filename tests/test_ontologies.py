@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 import pytest
-from gci_phenopacket.utils.ontologies import OntologyManager
+from gci_phenopacket.ontologies import OntologyManager
 
 
 def make_mock_onto():
@@ -16,12 +16,12 @@ def test_load_ontology_uses_custom_path(tmp_path):
     fake.touch()
     mock_onto = make_mock_onto()
 
-    with patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
+    with patch("gci_phenopacket.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager(
             custom_paths={"hp": fake, "mondo": fake},
         )
         # Both loaded via custom path — no URL strings passed
-        import gci_phenopacket.utils.ontologies as mod
+        import gci_phenopacket.ontologies as mod
         from unittest.mock import patch as p2
         with p2.object(mod.pronto, "Ontology", return_value=mock_onto) as mock_pronto:
             om2 = OntologyManager(
@@ -37,8 +37,8 @@ def test_load_ontology_loads_from_cache_when_exists(tmp_path):
     cache_file.write_text("fake obo content")
     mock_onto = make_mock_onto()
 
-    with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", tmp_path), \
-         patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto) as mock_pronto:
+    with patch("gci_phenopacket.ontologies.CACHE_DIR", tmp_path), \
+         patch("gci_phenopacket.ontologies.pronto.Ontology", return_value=mock_onto) as mock_pronto:
         om = OntologyManager(custom_paths={"mondo": tmp_path / "mondo.obo"})
 
     # hp.obo existed — should have been loaded from path, not URL
@@ -51,8 +51,8 @@ def test_load_ontology_downloads_and_caches_when_no_cache(tmp_path):
     """Cache miss: downloads from URL and saves .obo to cache dir."""
     mock_onto = make_mock_onto()
 
-    with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", tmp_path), \
-         patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
+    with patch("gci_phenopacket.ontologies.CACHE_DIR", tmp_path), \
+         patch("gci_phenopacket.ontologies.pronto.Ontology", return_value=mock_onto):
         OntologyManager()
 
     # Cache files should now exist
@@ -69,8 +69,8 @@ def test_hpo_to_labeled_phenotype_normalizes_obo_prefix():
     mock_onto = make_mock_onto()
     mock_onto.__getitem__ = MagicMock(return_value=mock_term)
 
-    with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", Path("/tmp")), \
-         patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
+    with patch("gci_phenopacket.ontologies.CACHE_DIR", Path("/tmp")), \
+         patch("gci_phenopacket.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager()
 
     result = om.hpo_to_labeled_phenotype("obo:HP_0001250")
@@ -83,8 +83,8 @@ def test_hpo_to_labeled_phenotype_returns_fallback_on_unknown_id():
     mock_onto = make_mock_onto()
     mock_onto.__getitem__ = MagicMock(side_effect=KeyError("not found"))
 
-    with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", Path("/tmp")), \
-         patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
+    with patch("gci_phenopacket.ontologies.CACHE_DIR", Path("/tmp")), \
+         patch("gci_phenopacket.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager()
 
     result = om.hpo_to_labeled_phenotype("HP:9999999")

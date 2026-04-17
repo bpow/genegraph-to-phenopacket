@@ -1,7 +1,10 @@
 import logging
 import os
+from pathlib import Path
 import pronto
-from gci_phenopacket.utils.paths import CACHE_DIR
+from platformdirs import user_cache_dir
+
+CACHE_DIR = Path(user_cache_dir("gci-phenopacket")) / "ontologies"
 
 logger = logging.getLogger(__name__)
 

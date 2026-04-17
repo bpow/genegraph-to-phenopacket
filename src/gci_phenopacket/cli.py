@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 from google.protobuf.json_format import MessageToJson
 
-from gci_phenopacket.utils.ontologies import OntologyManager
+from gci_phenopacket.ontologies import OntologyManager
 from gci_phenopacket.transformer import iter_individuals, passes_filter, build_phenopacket
 
 logger = logging.getLogger(__name__)
