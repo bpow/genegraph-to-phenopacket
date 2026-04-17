@@ -43,13 +43,6 @@ class OntologyManager:
         os.replace(tmp_path, cache_path)
         return onto
 
-    def mondo_to_label(self, mondo_id):
-        """Return the label for a Mondo ID (e.g. 'MONDO:0016587'), or None if not found."""
-        try:
-            return self.mondo[mondo_id].name
-        except Exception:
-            return None
-
     def hpo_to_labeled_phenotype(self, hpo_id):
         """Map HPO ID (e.g. 'obo:HP_0001250' or 'HP:0001250') to {id, label}."""
         normalized = hpo_id.replace("obo:HP_", "HP:").replace("obo:HP:", "HP:")

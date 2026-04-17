@@ -252,12 +252,31 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     # Disease
     diag_list = individual.get("diagnosis") or []
     diag = diag_list[0] if diag_list else {}
-    raw_disease_id = diag.get("diseaseId") or diag.get("PK") or ""
-    mondo_id = resolve_disease(raw_disease_id)
-    disease_label = om.mondo_to_label(mondo_id) or FALLBACK_DISEASE_LABEL
+    raw_disease_id = diag.get("diseaseId") or diag.get("PK") or FALLBACK_DISEASE_ID
+    raw_disease_label = diag.get("term")
+    if raw_disease_id.startswith("MONDO_"):
+        disease_id = raw_disease_id.replace("_", ":", 1)
+        mondo = om.mondo.get(disease_id)
+        if not mondo and raw_disease_label:
+            logging.getLogger(__name__).warning(
+                f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
+            )
+            disease_label = raw_disease_label
+        else:
+            disease_label = mondo.name
+            if disease_label != raw_disease_label:
+                logging.getLogger(__name__).warning(
+                    f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
+                )
+    else:
+        logging.getLogger(__name__).warning(
+            f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
+        )
+        disease_id = raw_disease_id
+        disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id.replace(':', '_')}_{pmid}_{label_s}_{tag}"
+    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}_{tag}"
 
     # MetaData
     ts = Timestamp()
@@ -277,7 +296,7 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
         id=f"{pmid}_{label_s}_{uuid}",
         progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
         diagnosis=pps2.Diagnosis(
-            disease=pps2.OntologyClass(id=mondo_id, label=disease_label),
+            disease=pps2.OntologyClass(id=disease_id, label=disease_label),
             genomic_interpretations=genomic_interps,
         ),
     )

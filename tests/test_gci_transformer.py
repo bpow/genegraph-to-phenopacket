@@ -190,6 +190,7 @@ def test_build_subject_gestational_age():
     assert subj.time_at_last_encounter.gestational_age.days == 4
 
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from gci_phenopacket.transformer import build_phenotypic_features
 
@@ -324,7 +325,10 @@ from gci_phenopacket.transformer import build_phenopacket
 def _make_om_with_mondo():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
-    om.mondo_to_label.side_effect = lambda mid: "arrhythmogenic right ventricular cardiomyopathy" if mid == "MONDO:0016587" else None
+    _mondo_data = {
+        "MONDO:0016587": SimpleNamespace(id="MONDO:0016587", name="arrhythmogenic right ventricular cardiomyopathy"),
+    }
+    om.mondo.get.side_effect = _mondo_data.get
     return om
 
 def _base_individual():
