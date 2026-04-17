@@ -13,13 +13,13 @@ class OntologyManager:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
         urls = {
-            "hp":    "http://purl.obolibrary.org/obo/hp.owl",
-            "mondo": "http://purl.obolibrary.org/obo/mondo.owl",
+            "hp":    "https://purl.obolibrary.org/obo/hp.owl",
+            "mondo": "https://purl.obolibrary.org/obo/mondo.owl",
         }
 
         logger.info("Initializing Ontologies (Checking Cache/Remote)...")
 
-        self.hpo   = self._load_ontology("hp",    urls["hp"])
+        self.hpo   = self._load_ontology("hp",     urls["hp"])
         self.mondo = self._load_ontology("mondo",  urls["mondo"])
 
         logger.info("Ontologies successfully loaded and indexed.")
