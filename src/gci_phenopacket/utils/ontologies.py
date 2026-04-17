@@ -1,11 +1,13 @@
+import logging
 import os
 import pronto
 from gci_phenopacket.utils.paths import CACHE_DIR
 
+logger = logging.getLogger(__name__)
+
 
 class OntologyManager:
-    def __init__(self, logger, custom_paths=None):
-        self.logger = logger
+    def __init__(self, custom_paths=None):
         self.custom_paths = custom_paths or {}
 
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -15,12 +17,12 @@ class OntologyManager:
             "mondo": "http://purl.obolibrary.org/obo/mondo.owl",
         }
 
-        self.logger.info("Initializing Ontologies (Checking Cache/Remote)...")
+        logger.info("Initializing Ontologies (Checking Cache/Remote)...")
 
         self.hpo   = self._load_ontology("hp",    urls["hp"])
         self.mondo = self._load_ontology("mondo",  urls["mondo"])
 
-        self.logger.info("Ontologies successfully loaded and indexed.")
+        logger.info("Ontologies successfully loaded and indexed.")
 
     def _load_ontology(self, name, url):
         """Load ontology: custom path → cache → remote download."""
@@ -29,12 +31,12 @@ class OntologyManager:
 
         cache_path = CACHE_DIR / f"{name}.obo"
         if cache_path.exists():
-            self.logger.info(f"Loading {name} from cache: {cache_path}")
+            logger.info(f"Loading {name} from cache: {cache_path}")
             return pronto.Ontology(str(cache_path))
 
-        self.logger.info(f"Downloading {name} from remote...")
+        logger.info(f"Downloading {name} from remote...")
         onto = pronto.Ontology(url)
-        self.logger.info(f"Saving {name} to cache...")
+        logger.info(f"Saving {name} to cache...")
         tmp_path = cache_path.with_suffix(".obo.tmp")
         with open(tmp_path, "wb") as f:
             onto.dump(f, format="obo")
@@ -55,5 +57,5 @@ class OntologyManager:
             term = self.hpo[normalized]
             return {"id": term.id, "label": term.name}
         except Exception as e:
-            self.logger.warning(f"Could not resolve HPO label for {hpo_id}: {e}")
+            logger.warning(f"Could not resolve HPO label for {hpo_id}: {e}")
             return {"id": normalized, "label": "Unknown Phenotype"}

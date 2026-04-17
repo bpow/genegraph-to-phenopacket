@@ -14,9 +14,8 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 | `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
 | `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
 | `src/gci_phenopacket/utils/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache (GENO hardcoded) |
-| `src/gci_phenopacket/utils/logger.py` | Stdout-only logging setup |
 | `src/gci_phenopacket/utils/paths.py` | `CACHE_DIR` via platformdirs |
-| `tests/test_gci_transformer.py` | Unit tests (68 tests across 4 test files) |
+| `tests/test_gci_transformer.py` | Unit tests (over 60 tests across 4 test files) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |

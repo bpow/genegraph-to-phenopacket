@@ -1,14 +1,7 @@
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 import pytest
 from gci_phenopacket.utils.ontologies import OntologyManager
-
-
-def make_logger():
-    logger = logging.getLogger("test-ontologies")
-    logger.addHandler(logging.NullHandler())
-    return logger
 
 
 def make_mock_onto():
@@ -25,7 +18,6 @@ def test_load_ontology_uses_custom_path(tmp_path):
 
     with patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
         om = OntologyManager(
-            make_logger(),
             custom_paths={"hp": fake, "mondo": fake},
         )
         # Both loaded via custom path — no URL strings passed
@@ -33,7 +25,6 @@ def test_load_ontology_uses_custom_path(tmp_path):
         from unittest.mock import patch as p2
         with p2.object(mod.pronto, "Ontology", return_value=mock_onto) as mock_pronto:
             om2 = OntologyManager(
-                make_logger(),
                 custom_paths={"hp": fake, "mondo": fake},
             )
             for c in mock_pronto.call_args_list:
@@ -48,7 +39,7 @@ def test_load_ontology_loads_from_cache_when_exists(tmp_path):
 
     with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", tmp_path), \
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto) as mock_pronto:
-        om = OntologyManager(make_logger(), custom_paths={"mondo": tmp_path / "mondo.obo"})
+        om = OntologyManager(custom_paths={"mondo": tmp_path / "mondo.obo"})
 
     # hp.obo existed — should have been loaded from path, not URL
     hp_calls = [c for c in mock_pronto.call_args_list if "hp.obo" in str(c)]
@@ -62,7 +53,7 @@ def test_load_ontology_downloads_and_caches_when_no_cache(tmp_path):
 
     with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", tmp_path), \
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
-        OntologyManager(make_logger())
+        OntologyManager()
 
     # Cache files should now exist
     assert (tmp_path / "hp.obo").exists()
@@ -80,7 +71,7 @@ def test_hpo_to_labeled_phenotype_normalizes_obo_prefix():
 
     with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", Path("/tmp")), \
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
-        om = OntologyManager(make_logger())
+        om = OntologyManager()
 
     result = om.hpo_to_labeled_phenotype("obo:HP_0001250")
     mock_onto.__getitem__.assert_called_with("HP:0001250")
@@ -94,7 +85,7 @@ def test_hpo_to_labeled_phenotype_returns_fallback_on_unknown_id():
 
     with patch("gci_phenopacket.utils.ontologies.CACHE_DIR", Path("/tmp")), \
          patch("gci_phenopacket.utils.ontologies.pronto.Ontology", return_value=mock_onto):
-        om = OntologyManager(make_logger())
+        om = OntologyManager()
 
     result = om.hpo_to_labeled_phenotype("HP:9999999")
     assert result == {"id": "HP:9999999", "label": "Unknown Phenotype"}

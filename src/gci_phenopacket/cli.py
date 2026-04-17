@@ -1,13 +1,16 @@
 import json
 import itertools
+import logging
+import sys
 from pathlib import Path
 
 import click
 from google.protobuf.json_format import MessageToJson
 
-from gci_phenopacket.utils.logger import setup_logger
 from gci_phenopacket.utils.ontologies import OntologyManager
 from gci_phenopacket.transformer import iter_individuals, passes_filter, build_phenopacket
+
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -30,16 +33,27 @@ from gci_phenopacket.transformer import iter_individuals, passes_filter, build_p
     default=None,
     help="0-based line index to process a single record (for testing)",
 )
-def main(input_path, output_path, record):
+@click.option(
+    "--log-level", "-l",
+    default="INFO",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+    show_default=True,
+    help="Logging verbosity level",
+)
+def main(input_path, output_path, record, log_level):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""
-    logger = setup_logger()
+    logging.basicConfig(
+        level=log_level.upper(),
+        stream=sys.stdout,
+        format="%(levelname)s: %(message)s",
+    )
 
     output_path.mkdir(parents=True, exist_ok=True)
 
     try:
-        om = OntologyManager(logger)
+        om = OntologyManager()
     except Exception as e:
-        logger.error(f"Failed to initialize ontologies: {e}")
+        logging.error(f"Failed to initialize ontologies: {e}")
         raise SystemExit(1)
 
     total_written = 0
