@@ -243,7 +243,7 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
 def build_phenopacket(record_uuid: str, annotation_uuid: str,
                       gene_symbol: str, hgnc_id: str,
                       pmid: str, article_title: str,
-                      individual: dict, tag: str, om) -> pps2.Phenopacket:
+                      individual: dict, tag: str, om, preserve_freetext: bool=False) -> pps2.Phenopacket:
     """Assemble a complete Phenopacket from all parts."""
     label = individual.get("label", "Unknown")
     label_s = sanitize_label(label)
@@ -268,12 +268,18 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
                 logging.getLogger(__name__).warning(
                     f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
                 )
-    else:
+    elif preserve_freetext:
         logging.getLogger(__name__).warning(
             f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
         )
         disease_id = raw_disease_id
         disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
+    else:
+        logging.getLogger(__name__).warning(
+            f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
+        )
+        disease_id = FALLBACK_DISEASE_ID
+        disease_label = FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
     pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}_{tag}"

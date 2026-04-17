@@ -40,7 +40,13 @@ logger = logging.getLogger(__name__)
     show_default=True,
     help="Logging verbosity level",
 )
-def main(input_path, output_path, record, log_level):
+@click.option(
+    "--preserve-freetext", '-f',
+    is_flag=True,
+    default=False,
+    help="Preserve freetext phenotypes instead of replacing with fallback 'human disease'",
+)
+def main(input_path, output_path, record, log_level, preserve_freetext):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""
     logging.basicConfig(
         level=log_level.upper(),
@@ -97,6 +103,7 @@ def main(input_path, output_path, record, log_level):
                             record_uuid, annotation_uuid,
                             gene_symbol, hgnc_id,
                             pmid, title, individual, tag, om,
+                            preserve_freetext,
                         )
                         out_path = output_path / f"{pp.id}.json"
                         with open(out_path, "w", encoding="utf-8") as out_f:
