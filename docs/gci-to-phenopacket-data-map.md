@@ -325,7 +325,112 @@ All other units: `ageValue` is truncated to int.
 
 ---
 
-## 7. Complete Structural Overview
+## 7. Entity Mapping Diagram
+
+```mermaid
+flowchart LR
+    subgraph GCI["GCI Snapshot (one JSONL line)"]
+        direction TB
+        GDM(["GDM Record\nuuid"])
+        GENE(["gene\nsymbol · hgncId"])
+        ANN(["annotation\nuuid"])
+        ART(["article\npmid · title"])
+        NESTING(["individuals[]\nfamilies[].individualIncluded[]\ngroups[].individualIncluded[]\ngroups[].familyIncluded[].individualIncluded[]"])
+
+        subgraph G_IND["individual  ← identical fields at every nesting level"]
+            direction TB
+            I_CORE(["label · uuid · sex\nageType · ageUnit · ageValue\nrecessiveZygosity"])
+            I_DIAG(["diagnosis[0]\ndiseaseId / PK"])
+            I_HPO_D(["hpoIdInDiagnosis[]"])
+            I_HPO_E(["hpoIdInElimination[]"])
+
+            subgraph G_VA["variants[]  —  Pattern A  (preferred)"]
+                VA(["carId\nclinvarVariantId\nclinvarVariantTitle\nmaneTranscriptTitle · hgvsNames"])
+            end
+
+            subgraph G_VB["variantScores[]  —  Pattern B  (fallback)"]
+                VB_W(["score · calculatedScore\ndeNovo · variantType\nevidenceType · scoreStatus\nfunctionalDataSupport"])
+                VS(["variantScored\ncarId · clinvarVariantId\nclinvarVariantTitle\npreferredTitle"])
+            end
+        end
+
+        GDM --> GENE & ANN
+        ANN --> ART & NESTING
+        NESTING --> I_CORE
+        I_CORE --- I_DIAG & I_HPO_D & I_HPO_E
+        VB_W --> VS
+    end
+
+    subgraph PP["Phenopacket v2"]
+        direction TB
+        PP_N(["Phenopacket\nid"])
+        META(["MetaData\ncreated · schema v2.0\nresources: HP MONDO GENO ECO"])
+
+        subgraph PP_SUBJ["Subject"]
+            S_ALL(["id = PMID_pmid:label\nsex\ntime_at_last_encounter\n  Age / GestationalAge\nvital_status = DECEASED\n  only when ageType=Death"])
+        end
+
+        subgraph PP_PF["PhenotypicFeature []  — one per HP term"]
+            PF_ALL(["type.id = HP:XXXXXXX\ntype.label\nexcluded: false / true"])
+            EV(["Evidence\nreference.id = PMID:xxx\nreference.description = title\nevidence_code = ECO:0000304"])
+        end
+
+        subgraph PP_INTERP["Interpretation  — exactly one per individual"]
+            INT_ALL(["id = pmid_label_uuid\nUNKNOWN_PROGRESS"])
+
+            subgraph PP_DIAG["Diagnosis"]
+                D_ALL(["disease.id = MONDO:XXXXXXX\ndisease.label"])
+
+                subgraph PP_GI["GenomicInterpretation []  — one per variant"]
+                    GI_ALL(["subject_or_biosample_id\n= PMID_pmid:label\nUNKNOWN_STATUS"])
+
+                    subgraph PP_VD["VariationDescriptor"]
+                        VD_ID(["id: caid:… / clinvar:…"])
+                        VD_LAB(["label = clinvarVariantTitle"])
+                        VD_GC(["gene_context\nvalue_id · symbol\nonly if symbol in title"])
+                        VD_AS(["allelic_state\nGENO term\nonly if recessiveZygosity set"])
+                        VD_MC(["molecule_context\n= unspecified"])
+                    end
+                end
+            end
+        end
+
+        PP_N --> META & PP_SUBJ & PP_PF & PP_INTERP
+        PP_INTERP --> PP_DIAG --> PP_GI --> PP_VD
+    end
+
+    %% ── Record-level → Phenopacket id ──────────────────────
+    GDM  -.->|"uuid → id part 1"| PP_N
+    ANN  -.->|"uuid → id part 2"| PP_N
+    GENE -.->|"symbol → id part 3"| PP_N
+    ART  -.->|"pmid → id part 5"| PP_N
+
+    %% ── individual → Subject ───────────────────────────────
+    I_CORE ==>|"label + sex + age + uuid"| PP_SUBJ
+    ART    ==>|"pmid → id prefix"| PP_SUBJ
+
+    %% ── HPO → PhenotypicFeature ────────────────────────────
+    I_HPO_D ==>|"excluded = false"| PP_PF
+    I_HPO_E ==>|"excluded = true"| PP_PF
+    ART     ==>|"pmid → PMID:xxx\ntitle → description"| EV
+
+    %% ── individual → Interpretation id ────────────────────
+    I_CORE ==>|"label + uuid → id"| PP_INTERP
+    ART    ==>|"pmid → id"| PP_INTERP
+
+    %% ── disease ────────────────────────────────────────────
+    I_DIAG ==>|"MONDO_XXXXXXX\n→ MONDO:XXXXXXX"| PP_DIAG
+
+    %% ── variants → VariationDescriptor ────────────────────
+    VA     ==>|"carId → caid:…\nclinvarVariantId → clinvar:…\nclinvarVariantTitle → label"| PP_VD
+    VS     ==>|"same fields\n(fallback if variants[] empty)\ncarId may be absent"| PP_VD
+    GENE   ==>|"symbol + hgncId\n→ gene_context"| VD_GC
+    I_CORE ==>|"recessiveZygosity\n→ GENO lookup"| VD_AS
+```
+
+---
+
+## 8. Complete Structural Overview
 
 ```
 GCI JSONL record
