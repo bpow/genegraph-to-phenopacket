@@ -267,18 +267,18 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     raw_disease_label = diag.get("term")
     if raw_disease_id.startswith("MONDO_"):
         disease_id = raw_disease_id.replace("_", ":", 1)
-        mondo = om.mondo.get(disease_id)
-        if not mondo and raw_disease_label:
+        disease_label = om.mondo_label(disease_id)
+        if disease_label is None and raw_disease_label:
             LOGGER.warning(
                 f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
             )
             disease_label = raw_disease_label
-        else:
-            disease_label = mondo.name
-            if disease_label != raw_disease_label:
-                LOGGER.warning(
-                    f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
-                )
+        elif disease_label is None:
+            disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
+        elif disease_label != raw_disease_label:
+            LOGGER.warning(
+                f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
+            )
     elif preserve_freetext:
         LOGGER.warning(
             f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"

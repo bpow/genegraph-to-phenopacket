@@ -13,7 +13,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 |---|---|
 | `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
 | `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
-| `src/gci_phenopacket/ontologies.py` | OntologyManager: HPO + Mondo via pronto, disk cache; `CACHE_DIR` via platformdirs |
+| `src/gci_phenopacket/ontologies.py` | OntologyManager: HPO + Mondo via oaklib sqlite adapter (auto-cached by oaklib) |
 | `tests/test_gci_transformer.py` | Unit tests (over 60 tests across 4 test files) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
@@ -66,14 +66,15 @@ pixi run test
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `(individual_dict, tag)` for all nesting levels
 - `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
-- Ontologies (HP, Mondo only) are cached on first download to the platform cache dir (e.g. `~/Library/Caches/gci-phenopacket/ontologies/` on macOS)
+- Ontologies (HP, Mondo only) are loaded via oaklib's sqlite adapter (`sqlite:obo:hp`, `sqlite:obo:mondo`); oaklib manages download and caching automatically
+- `OntologyManager.mondo_label(disease_id)` returns the Mondo label string or `None` if not found
 - `--record N` jumps directly to line N via `itertools.islice` — does not scan the whole file
 
 ## Environment
 
 - Package manager: [Pixi](https://pixi.sh)
 - Python: 3.12
-- Key dependencies: `phenopackets>=2.0.2.post5`, `pronto`, `click`, `platformdirs`, `pytest`
+- Key dependencies: `phenopackets>=2.0.2.post5`, `oaklib`, `click`, `pytest`
 
 ## Conventions
 

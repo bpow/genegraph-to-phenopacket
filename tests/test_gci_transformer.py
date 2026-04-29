@@ -1,5 +1,6 @@
 # tests/test_gci_transformer.py
-from gci_phenopacket.transformer import sanitize_label, resolve_disease, build_iso8601_age
+import phenopackets.schema.v2 as pps2
+from gci_phenopacket.transformer import sanitize_label, resolve_disease, build_time_element
 
 
 def test_sanitize_label_spaces():
@@ -23,44 +24,52 @@ def test_resolve_disease_freetext_returns_default():
 def test_resolve_disease_empty_returns_default():
     assert resolve_disease("") == "MONDO:0700096"
 
-def test_build_iso8601_age_years():
-    assert build_iso8601_age(41, "Years") == ("age", "P41Y")
+def test_build_time_element_years():
+    te = build_time_element(41, "Years")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="P41Y"))
 
-def test_build_iso8601_age_months():
-    assert build_iso8601_age(6, "Months") == ("age", "P6M")
+def test_build_time_element_months():
+    te = build_time_element(6, "Months")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="P6M"))
 
-def test_build_iso8601_age_days():
-    assert build_iso8601_age(5, "Days") == ("age", "P5D")
+def test_build_time_element_days():
+    te = build_time_element(5, "Days")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="P5D"))
 
-def test_build_iso8601_age_weeks():
-    assert build_iso8601_age(3, "Weeks") == ("age", "P3W")
+def test_build_time_element_weeks():
+    te = build_time_element(3, "Weeks")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="P3W"))
 
-def test_build_iso8601_age_hours():
-    assert build_iso8601_age(12, "Hours") == ("age", "PT12H")
+def test_build_time_element_hours():
+    te = build_time_element(12, "Hours")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="PT12H"))
 
-def test_build_iso8601_age_weeks_gestation_whole():
-    assert build_iso8601_age(38, "Weeks gestation") == ("gestational", (38, 0))
+def test_build_time_element_weeks_gestation_whole():
+    te = build_time_element(38, "Weeks gestation")
+    assert te == pps2.TimeElement(gestational_age=pps2.GestationalAge(weeks=38, days=0))
 
-def test_build_iso8601_age_weeks_gestation_fractional():
-    assert build_iso8601_age(38.5, "Weeks gestation") == ("gestational", (38, 4))
+def test_build_time_element_weeks_gestation_fractional():
+    te = build_time_element(38.5, "Weeks gestation")
+    assert te == pps2.TimeElement(gestational_age=pps2.GestationalAge(weeks=38, days=4))
 
-def test_build_iso8601_age_unknown_unit_returns_none():
-    assert build_iso8601_age(5, "Decades") is None
+def test_build_time_element_unknown_unit_returns_none():
+    assert build_time_element(5, "Decades") is None
 
-def test_build_iso8601_age_none_value_returns_none():
-    assert build_iso8601_age(None, "Years") is None
+def test_build_time_element_none_value_returns_none():
+    assert build_time_element(None, "Years") is None
 
-def test_build_iso8601_age_float_truncated():
-    assert build_iso8601_age(41.7, "Years") == ("age", "P41Y")
+def test_build_time_element_float_truncated():
+    te = build_time_element(41.7, "Years")
+    assert te == pps2.TimeElement(age=pps2.Age(iso8601duration="P41Y"))
 
-def test_build_iso8601_age_unknown_unit_logs_warning(caplog):
+def test_build_time_element_unknown_unit_logs_warning(caplog):
     import logging
     with caplog.at_level(logging.WARNING, logger="gci_phenopacket.transformer"):
-        build_iso8601_age(5, "Decades")
+        build_time_element(5, "Decades")
     assert "Unrecognized ageUnit" in caplog.text
 
-def test_build_iso8601_age_none_unit_returns_none():
-    assert build_iso8601_age(5, None) is None
+def test_build_time_element_none_unit_returns_none():
+    assert build_time_element(5, None) is None
 
 
 from gci_phenopacket.transformer import iter_individuals
@@ -144,16 +153,16 @@ def test_collect_annotation_with_absent_keys():
 from gci_phenopacket.transformer import build_gci_provenance_id
 
 def test_provenance_id_direct_individual():
-    assert build_gci_provenance_id("gdm-1", "ind-1") == "gdmgdm-1:Iind-1"
+    assert build_gci_provenance_id("gdm-1", "ind-1") == "gdm:gdm-1-individual:ind-1"
 
 def test_provenance_id_family_individual():
-    assert build_gci_provenance_id("gdm-1", "ind-1", family_uuid="fam-1") == "gdmgdm-1:Ffam-1:Iind-1"
+    assert build_gci_provenance_id("gdm-1", "ind-1", family_uuid="fam-1") == "gdm:gdm-1-family:fam-1-individual:ind-1"
 
 def test_provenance_id_group_individual():
-    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1") == "gdmgdm-1:Ggrp-1:Iind-1"
+    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1") == "gdm:gdm-1-group:grp-1-individual:ind-1"
 
 def test_provenance_id_group_family_individual():
-    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1", family_uuid="fam-1") == "gdmgdm-1:Ggrp-1:Ffam-1:Iind-1"
+    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1", family_uuid="fam-1") == "gdm:gdm-1-group:grp-1-family:fam-1-individual:ind-1"
 
 
 from gci_phenopacket.transformer import passes_filter
@@ -225,7 +234,6 @@ def test_build_subject_gestational_age():
     assert subj.time_at_last_encounter.gestational_age.days == 4
 
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 from gci_phenopacket.transformer import build_phenotypic_features
 
@@ -361,9 +369,9 @@ def _make_om_with_mondo():
     om = MagicMock()
     om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
     _mondo_data = {
-        "MONDO:0016587": SimpleNamespace(id="MONDO:0016587", name="arrhythmogenic right ventricular cardiomyopathy"),
+        "MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy",
     }
-    om.mondo.get.side_effect = _mondo_data.get
+    om.mondo_label.side_effect = _mondo_data.get
     return om
 
 def _base_individual():
@@ -440,9 +448,9 @@ def test_build_phenopacket_provenance_direct_individual():
     pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo(),
                            gdm_uuid="gdm-abc")
     assert len(pp.meta_data.external_references) == 1
-    assert pp.meta_data.external_references[0].id == "gdmgdm-abc:Iuuid-123"
+    assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
 
 def test_build_phenopacket_provenance_group_family():
     pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "group", _make_om_with_mondo(),
                            gdm_uuid="gdm-abc", group_uuid="grp-1", family_uuid="fam-1")
-    assert pp.meta_data.external_references[0].id == "gdmgdm-abc:Ggrp-1:Ffam-1:Iuuid-123"
+    assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"
