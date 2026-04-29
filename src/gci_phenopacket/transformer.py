@@ -67,14 +67,8 @@ def resolve_disease(disease_id: str) -> str:
     return FALLBACK_DISEASE_ID
 
 
-def build_iso8601_age(age_value, age_unit: str):
-    """
-    Convert ageValue + ageUnit to an ISO 8601 duration string.
-    Returns:
-      ("age", "P41Y")               for standard units
-      ("gestational", (weeks, days)) for "Weeks gestation"
-      None                           for missing/unknown input (logs a warning)
-    """
+def build_time_element(age_value, age_unit: str):
+    """Convert ageValue + ageUnit to a phenopacket TimeElement."""
     if age_value is None:
         return None
     if age_unit is None:
@@ -82,27 +76,28 @@ def build_iso8601_age(age_value, age_unit: str):
     if age_unit == "Weeks gestation":
         weeks = math.floor(age_value)
         days = round((age_value - weeks) * 7)
-        return ("gestational", (weeks, days))
+        return pps2.TimeElement(gestational_age=pps2.GestationalAge(weeks=weeks, days=days))
+    
     template = AGE_UNIT_MAP.get(age_unit)
     if template is None:
         LOGGER.warning(f"Unrecognized ageUnit '{age_unit}' — omitting time_at_last_encounter")
         return None
-    return ("age", template.replace("{n}", str(int(age_value))))
+    return pps2.TimeElement(age=pps2.Age(iso8601duration=template.replace("{n}", str(int(age_value)))))
 
 
 def _gci_id(obj: dict) -> str:
-    return obj.get("uuid") or obj.get("PK") or "no-uuid"
+    return obj.get("uuid") or obj.get("PK") or "no_uuid"
 
 
 def build_gci_provenance_id(gdm_uuid: str, individual_uuid: str,
-                             group_uuid=None, family_uuid=None) -> str:
-    parts = [f"gdm{gdm_uuid}"]
+                            group_uuid=None, family_uuid=None) -> str:
+    parts = [f"gdm:{gdm_uuid}"]
     if group_uuid:
-        parts.append(f"G{group_uuid}")
+        parts.append(f"group:{group_uuid}")
     if family_uuid:
-        parts.append(f"F{family_uuid}")
-    parts.append(f"I{individual_uuid}")
-    return ":".join(parts)
+        parts.append(f"family:{family_uuid}")
+    parts.append(f"individual:{individual_uuid}")
+    return "-".join(parts)
 
 
 def iter_individuals(annotation: dict):
@@ -149,18 +144,9 @@ def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     if age_type == "Death":
         kwargs["vital_status"] = pps2.VitalStatus(status=pps2.VitalStatus.Status.DECEASED)
 
-    age_result = build_iso8601_age(age_value, age_unit) if age_unit else None
+    age_result = build_time_element(age_value, age_unit) if age_unit else None
     if age_result:
-        kind, value = age_result
-        if kind == "age":
-            kwargs["time_at_last_encounter"] = pps2.TimeElement(
-                age=pps2.Age(iso8601duration=value)
-            )
-        elif kind == "gestational":
-            weeks, days = value
-            kwargs["time_at_last_encounter"] = pps2.TimeElement(
-                gestational_age=pps2.GestationalAge(weeks=weeks, days=days)
-            )
+        kwargs["time_at_last_encounter"] = age_result
 
     return pps2.Individual(**kwargs)
 
