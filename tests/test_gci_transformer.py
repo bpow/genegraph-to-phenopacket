@@ -76,41 +76,61 @@ def test_collect_direct_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 2
-    assert all(tag == "individual" for _, tag in results)
-    assert [ind["label"] for ind, _ in results] == ["A", "B"]
+    assert all(tag == "individual" for _, tag, *_ in results)
+    assert [ind["label"] for ind, *_ in results] == ["A", "B"]
+    assert all(grp is None and fam is None for _, _, grp, fam in results)
 
 def test_collect_family_individuals():
     annotation = {
         "individuals": [],
-        "families": [{"individualIncluded": [_make_individual("C")]}],
+        "families": [{"uuid": "fam-1", "individualIncluded": [_make_individual("C")]}],
         "groups": [],
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "family"
+    _, tag, grp_uuid, fam_uuid = results[0]
+    assert tag == "family"
+    assert grp_uuid is None
+    assert fam_uuid == "fam-1"
+
+def test_collect_family_individuals_pk_fallback():
+    annotation = {
+        "individuals": [],
+        "families": [{"PK": "fam-pk", "individualIncluded": [_make_individual("C2")]}],
+        "groups": [],
+    }
+    _, _, _, fam_uuid = list(iter_individuals(annotation))[0]
+    assert fam_uuid == "fam-pk"
 
 def test_collect_group_direct_individuals():
     annotation = {
         "individuals": [],
         "families": [],
-        "groups": [{"individualIncluded": [_make_individual("D")], "familyIncluded": []}],
+        "groups": [{"uuid": "grp-1", "individualIncluded": [_make_individual("D")], "familyIncluded": []}],
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "group"
+    _, tag, grp_uuid, fam_uuid = results[0]
+    assert tag == "group"
+    assert grp_uuid == "grp-1"
+    assert fam_uuid is None
 
 def test_collect_group_family_individuals():
     annotation = {
         "individuals": [],
         "families": [],
         "groups": [{
+            "uuid": "grp-2",
             "individualIncluded": [],
-            "familyIncluded": [{"individualIncluded": [_make_individual("E")]}],
+            "familyIncluded": [{"uuid": "fam-2", "individualIncluded": [_make_individual("E")]}],
         }],
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    assert results[0][1] == "group"
+    _, tag, grp_uuid, fam_uuid = results[0]
+    assert tag == "group"
+    assert grp_uuid == "grp-2"
+    assert fam_uuid == "fam-2"
 
 def test_collect_empty_annotation():
     annotation = {"individuals": [], "families": [], "groups": []}
@@ -119,6 +139,21 @@ def test_collect_empty_annotation():
 def test_collect_annotation_with_absent_keys():
     # Annotation dict with no keys at all should yield nothing, not raise
     assert list(iter_individuals({})) == []
+
+
+from gci_phenopacket.transformer import build_gci_provenance_id
+
+def test_provenance_id_direct_individual():
+    assert build_gci_provenance_id("gdm-1", "ind-1") == "gdmgdm-1:Iind-1"
+
+def test_provenance_id_family_individual():
+    assert build_gci_provenance_id("gdm-1", "ind-1", family_uuid="fam-1") == "gdmgdm-1:Ffam-1:Iind-1"
+
+def test_provenance_id_group_individual():
+    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1") == "gdmgdm-1:Ggrp-1:Iind-1"
+
+def test_provenance_id_group_family_individual():
+    assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1", family_uuid="fam-1") == "gdmgdm-1:Ggrp-1:Ffam-1:Iind-1"
 
 
 from gci_phenopacket.transformer import passes_filter
@@ -400,3 +435,14 @@ def test_build_phenopacket_metadata_resources_count():
     assert len(pp.meta_data.resources) == 4
     resource_ids = {r.id for r in pp.meta_data.resources}
     assert resource_ids == {"hp", "mondo", "geno", "eco"}
+
+def test_build_phenopacket_provenance_direct_individual():
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo(),
+                           gdm_uuid="gdm-abc")
+    assert len(pp.meta_data.external_references) == 1
+    assert pp.meta_data.external_references[0].id == "gdmgdm-abc:Iuuid-123"
+
+def test_build_phenopacket_provenance_group_family():
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "group", _make_om_with_mondo(),
+                           gdm_uuid="gdm-abc", group_uuid="grp-1", family_uuid="fam-1")
+    assert pp.meta_data.external_references[0].id == "gdmgdm-abc:Ggrp-1:Ffam-1:Iuuid-123"

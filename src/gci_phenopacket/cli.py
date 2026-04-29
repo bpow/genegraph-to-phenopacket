@@ -84,6 +84,7 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
 
             record_uuid = rec.get("uuid", "no-uuid")
             gdm = rec.get("resourceParent", {}).get("gdm", {})
+            gdm_uuid = gdm.get("uuid") or gdm.get("PK") or "no-uuid"
             gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
             hgnc_id = gdm.get("gene", {}).get("hgncId", "")
 
@@ -92,7 +93,7 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
                 pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
                 title = annotation.get("article", {}).get("title", "")
 
-                for individual, tag in iter_individuals(annotation):
+                for individual, tag, group_uuid, family_uuid in iter_individuals(annotation):
                     if not passes_filter(individual):
                         skipped_no_hpo += 1
                         logger.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
@@ -103,7 +104,10 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
                             record_uuid, annotation_uuid,
                             gene_symbol, hgnc_id,
                             pmid, title, individual, tag, om,
-                            preserve_freetext,
+                            gdm_uuid=gdm_uuid,
+                            group_uuid=group_uuid,
+                            family_uuid=family_uuid,
+                            preserve_freetext=preserve_freetext,
                         )
                         out_path = output_path / f"{pp.id}.json"
                         with open(out_path, "w", encoding="utf-8") as out_f:

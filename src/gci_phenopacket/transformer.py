@@ -90,24 +90,43 @@ def build_iso8601_age(age_value, age_unit: str):
     return ("age", template.replace("{n}", str(int(age_value))))
 
 
+def _gci_id(obj: dict) -> str:
+    return obj.get("uuid") or obj.get("PK") or "no-uuid"
+
+
+def build_gci_provenance_id(gdm_uuid: str, individual_uuid: str,
+                             group_uuid=None, family_uuid=None) -> str:
+    parts = [f"gdm{gdm_uuid}"]
+    if group_uuid:
+        parts.append(f"G{group_uuid}")
+    if family_uuid:
+        parts.append(f"F{family_uuid}")
+    parts.append(f"I{individual_uuid}")
+    return ":".join(parts)
+
+
 def iter_individuals(annotation: dict):
     """
-    Yield (individual_dict, tag) for all individuals in an annotation.
-    tag is "i" (direct), "f" (family), or "g" (group/group-family).
+    Yield (individual_dict, tag, group_uuid, family_uuid) for all individuals in an annotation.
+    tag is "individual" (direct), "family", or "group". group_uuid/family_uuid are None when
+    the individual is not nested in that structure.
     """
     for ind in annotation.get("individuals") or []:
-        yield ind, "individual"
+        yield ind, "individual", None, None
 
     for family in annotation.get("families") or []:
+        fam_uuid = _gci_id(family)
         for ind in family.get("individualIncluded") or []:
-            yield ind, "family"
+            yield ind, "family", None, fam_uuid
 
     for group in annotation.get("groups") or []:
+        grp_uuid = _gci_id(group)
         for ind in group.get("individualIncluded") or []:
-            yield ind, "group"
+            yield ind, "group", grp_uuid, None
         for family in group.get("familyIncluded") or []:
+            fam_uuid = _gci_id(family)
             for ind in family.get("individualIncluded") or []:
-                yield ind, "group"
+                yield ind, "group", grp_uuid, fam_uuid
 
 
 def passes_filter(individual: dict) -> bool:
@@ -245,7 +264,11 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
 def build_phenopacket(record_uuid: str, annotation_uuid: str,
                       gene_symbol: str, hgnc_id: str,
                       pmid: str, article_title: str,
-                      individual: dict, tag: str, om, preserve_freetext: bool=False) -> pps2.Phenopacket:
+                      individual: dict, tag: str, om,
+                      gdm_uuid: str = "no-uuid",
+                      group_uuid: str | None = None,
+                      family_uuid: str | None = None,
+                      preserve_freetext: bool = False) -> pps2.Phenopacket:
     """Assemble a complete Phenopacket from all parts."""
     label = individual.get("label", "Unknown")
     label_s = sanitize_label(label)
@@ -289,10 +312,12 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     # MetaData
     ts = Timestamp()
     ts.GetCurrentTime()
+    provenance_id = build_gci_provenance_id(gdm_uuid, uuid, group_uuid, family_uuid)
     meta_data = pps2.MetaData(
         created=ts,
         resources=list(RESOURCE_METADATA),
         phenopacket_schema_version="2.0",
+        external_references=[pps2.ExternalReference(id=provenance_id)],
     )
 
     # Build parts
