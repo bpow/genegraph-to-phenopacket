@@ -85,9 +85,8 @@ def test_collect_direct_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 2
-    assert all(tag == "individual" for _, tag, *_ in results)
     assert [ind["label"] for ind, *_ in results] == ["A", "B"]
-    assert all(grp is None and fam is None for _, _, grp, fam in results)
+    assert all(grp is None and fam is None for _, grp, fam in results)
 
 def test_collect_family_individuals():
     annotation = {
@@ -97,8 +96,7 @@ def test_collect_family_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, tag, grp_uuid, fam_uuid = results[0]
-    assert tag == "family"
+    _, grp_uuid, fam_uuid = results[0]
     assert grp_uuid is None
     assert fam_uuid == "fam-1"
 
@@ -108,7 +106,7 @@ def test_collect_family_individuals_pk_fallback():
         "families": [{"PK": "fam-pk", "individualIncluded": [_make_individual("C2")]}],
         "groups": [],
     }
-    _, _, _, fam_uuid = list(iter_individuals(annotation))[0]
+    _, _, fam_uuid = list(iter_individuals(annotation))[0]
     assert fam_uuid == "fam-pk"
 
 def test_collect_group_direct_individuals():
@@ -119,8 +117,7 @@ def test_collect_group_direct_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, tag, grp_uuid, fam_uuid = results[0]
-    assert tag == "group"
+    _, grp_uuid, fam_uuid = results[0]
     assert grp_uuid == "grp-1"
     assert fam_uuid is None
 
@@ -136,8 +133,7 @@ def test_collect_group_family_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, tag, grp_uuid, fam_uuid = results[0]
-    assert tag == "group"
+    _, grp_uuid, fam_uuid = results[0]
     assert grp_uuid == "grp-2"
     assert fam_uuid == "fam-2"
 
@@ -393,64 +389,64 @@ ANN_UUID = "bbbb-2222"
 
 def test_build_phenopacket_id_format():
     # ID should use record and annotation UUIDs instead of positional indices
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "individual", _make_om_with_mondo())
-    assert pp.id == "aaaa-1111_bbbb-2222_DSG2_MONDO_0016587_12345_Test_Patient_individual"
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), _make_om_with_mondo())
+    assert pp.id == "aaaa-1111_bbbb-2222_DSG2_MONDO_0016587_12345_Test_Patient"
 
 def test_build_phenopacket_diagnosis_uses_colon_form():
     # Diagnosis disease.id must use colon format even though ID uses underscore
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "12345", "Title", _base_individual(), _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_subject_id():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "family", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo())
     assert pp.subject.id == "PMID_99:Test Patient"
 
 def test_build_phenopacket_freetext_disease_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = [{"diseaseId": "FREETEXT_abc"}]
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
     assert pp.interpretations[0].diagnosis.disease.label == "human disease"
 
 def test_build_phenopacket_empty_diagnosis_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = []
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
 
 def test_build_phenopacket_diagnosis_uses_pk_when_no_disease_id():
     ind = _base_individual()
     ind["diagnosis"] = [{"PK": "MONDO_0016587"}]
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
     ind = _base_individual()
     ind["diagnosis"] = [{"diseaseId": "MONDO_0016587", "PK": "MONDO_0054748"}]
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_interpretation_id():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo())
     assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
 
 def test_build_phenopacket_metadata_schema_version():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo())
     assert pp.meta_data.phenopacket_schema_version == "2.0"
 
 def test_build_phenopacket_metadata_resources_count():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo())
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo())
     assert len(pp.meta_data.resources) == 4
     resource_ids = {r.id for r in pp.meta_data.resources}
     assert resource_ids == {"hp", "mondo", "geno", "eco"}
 
 def test_build_phenopacket_provenance_direct_individual():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "individual", _make_om_with_mondo(),
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo(),
                            gdm_uuid="gdm-abc")
     assert len(pp.meta_data.external_references) == 1
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
 
 def test_build_phenopacket_provenance_group_family():
-    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), "group", _make_om_with_mondo(),
+    pp = build_phenopacket(REC_UUID, ANN_UUID, "DSG2", "HGNC:3049", "99", "T", _base_individual(), _make_om_with_mondo(),
                            gdm_uuid="gdm-abc", group_uuid="grp-1", family_uuid="fam-1")
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"

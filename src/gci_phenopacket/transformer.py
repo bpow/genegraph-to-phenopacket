@@ -2,6 +2,8 @@
 import math
 import re
 import logging
+from dataclasses import dataclass, asdict
+from typing import Iterator
 import phenopackets.schema.v2 as pps2
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -41,6 +43,66 @@ AGE_UNIT_MAP = {
     "Days":   "P{n}D",
     "Hours":  "PT{n}H",
 }
+
+@dataclass
+class GCITransformerStats:
+    """Class to track statistics during transformation."""
+
+    total_records: int = 0
+    total_individuals: int = 0
+    individuals_with_hpo: int = 0
+    phenopackets_created: int = 0
+    skipped_no_hpo: int = 0
+
+    def asdict(self):
+        return asdict(self)
+
+class GCITransformer:
+    """Class to encapsulate transformation logic from GCI records to Phenopackets."""
+    def __init__(self, ontology_manager, preserve_freetext: bool = False):
+        self.om = ontology_manager
+        self.stats = GCITransformerStats()
+        self.preserve_freetext = preserve_freetext
+
+    def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
+        """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
+        self.stats.total_records += 1
+        record_id = _gci_id(record)
+        gdm = record.get("resourceParent", {}).get("gdm", {})
+        gdm_id = _gci_id(gdm)
+        gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
+        hgnc_id = gdm.get("gene", {}).get("hgncId", "")
+
+        for annotation in gdm.get("annotations") or []:
+            annotation_id = _gci_id(annotation)
+            pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
+            title = annotation.get("article", {}).get("title", "")
+
+            for individual, group_id, family_id in iter_individuals(annotation):
+                self.stats.total_individuals += 1
+                if not passes_filter(individual):
+                    self.stats.skipped_no_hpo += 1
+                    LOGGER.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
+                    continue
+                self.stats.individuals_with_hpo += 1
+
+                try:
+                    pp = build_phenopacket(
+                        record_id, annotation_id,
+                        gene_symbol, hgnc_id,
+                        pmid, title, individual, self.om,
+                        gdm_uuid=gdm_id,
+                        group_uuid=group_id,
+                        family_uuid=family_id,
+                        preserve_freetext=self.preserve_freetext,
+                    )
+                    self.stats.phenopackets_created += 1
+                    yield pp
+                except Exception as e:
+                    LOGGER.error(
+                        f"Record {record_id}, annotation {annotation_id}, "
+                        f"individual '{individual.get('label')}': {e}"
+                    )
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -102,26 +164,25 @@ def build_gci_provenance_id(gdm_uuid: str, individual_uuid: str,
 
 def iter_individuals(annotation: dict):
     """
-    Yield (individual_dict, tag, group_uuid, family_uuid) for all individuals in an annotation.
-    tag is "individual" (direct), "family", or "group". group_uuid/family_uuid are None when
-    the individual is not nested in that structure.
+    Yield (individual_dict, group_uuid, family_uuid) for all individuals in an annotation.
+    group_uuid/family_uuid are None when the individual is not nested in that structure.
     """
     for ind in annotation.get("individuals") or []:
-        yield ind, "individual", None, None
+        yield ind, None, None
 
     for family in annotation.get("families") or []:
         fam_uuid = _gci_id(family)
         for ind in family.get("individualIncluded") or []:
-            yield ind, "family", None, fam_uuid
+            yield ind, None, fam_uuid
 
     for group in annotation.get("groups") or []:
         grp_uuid = _gci_id(group)
         for ind in group.get("individualIncluded") or []:
-            yield ind, "group", grp_uuid, None
+            yield ind, grp_uuid, None
         for family in group.get("familyIncluded") or []:
             fam_uuid = _gci_id(family)
             for ind in family.get("individualIncluded") or []:
-                yield ind, "group", grp_uuid, fam_uuid
+                yield ind, grp_uuid, fam_uuid
 
 
 def passes_filter(individual: dict) -> bool:
@@ -250,7 +311,7 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
 def build_phenopacket(record_uuid: str, annotation_uuid: str,
                       gene_symbol: str, hgnc_id: str,
                       pmid: str, article_title: str,
-                      individual: dict, tag: str, om,
+                      individual: dict, om,
                       gdm_uuid: str = "no-uuid",
                       group_uuid: str | None = None,
                       family_uuid: str | None = None,
@@ -293,7 +354,7 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
         disease_label = FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}_{tag}"
+    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}"
 
     # MetaData
     ts = Timestamp()

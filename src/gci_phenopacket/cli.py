@@ -8,7 +8,7 @@ import click
 from google.protobuf.json_format import MessageToJson
 
 from gci_phenopacket.ontologies import OntologyManager
-from gci_phenopacket.transformer import iter_individuals, passes_filter, build_phenopacket
+from gci_phenopacket.transformer import GCITransformer, iter_individuals, passes_filter, build_phenopacket
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,8 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
     except Exception as e:
         logging.error(f"Failed to initialize ontologies: {e}")
         raise SystemExit(1)
-
-    total_written = 0
-    skipped_no_hpo = 0
+    
+    transformer = GCITransformer(om, preserve_freetext=preserve_freetext)
 
     with open(input_path, encoding="utf-8") as f:
         if record is not None:
@@ -82,47 +81,15 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
                 logger.warning(f"Line {file_index}: JSON parse error — {e}")
                 continue
 
-            record_uuid = rec.get("uuid", "no-uuid")
-            gdm = rec.get("resourceParent", {}).get("gdm", {})
-            gdm_uuid = gdm.get("uuid") or gdm.get("PK") or "no-uuid"
-            gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
-            hgnc_id = gdm.get("gene", {}).get("hgncId", "")
-
-            for annotation in gdm.get("annotations") or []:
-                annotation_uuid = annotation.get("uuid", "no-uuid")
-                pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
-                title = annotation.get("article", {}).get("title", "")
-
-                for individual, tag, group_uuid, family_uuid in iter_individuals(annotation):
-                    if not passes_filter(individual):
-                        skipped_no_hpo += 1
-                        logger.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
-                        continue
-
-                    try:
-                        pp = build_phenopacket(
-                            record_uuid, annotation_uuid,
-                            gene_symbol, hgnc_id,
-                            pmid, title, individual, tag, om,
-                            gdm_uuid=gdm_uuid,
-                            group_uuid=group_uuid,
-                            family_uuid=family_uuid,
-                            preserve_freetext=preserve_freetext,
-                        )
-                        out_path = output_path / f"{pp.id}.json"
-                        with open(out_path, "w", encoding="utf-8") as out_f:
-                            out_f.write(MessageToJson(pp, indent=2))
-                        total_written += 1
-                        logger.info(f"Saved: {out_path.name}")
-                    except Exception as e:
-                        logger.error(
-                            f"Line {file_index}, annotation {annotation_uuid}, "
-                            f"individual '{individual.get('label')}': {e}"
-                        )
-
+            for pp in transformer.phenopackets_from_gci_record(rec):
+                out_path = output_path / f"{pp.id}.json"
+                with open(out_path, "w", encoding="utf-8") as out_f:
+                    out_f.write(MessageToJson(pp, indent=2))
+                logger.info(f"Saved: {out_path.name}")
+        
     logger.info(
-        f"Done. Written: {total_written} | "
-        f"Skipped (no HPO): {skipped_no_hpo}"
+        f"Done. Written: {transformer.stats.phenopackets_created} | "
+        f"Skipped (no HPO): {transformer.stats.skipped_no_hpo}"
     )
 
 
