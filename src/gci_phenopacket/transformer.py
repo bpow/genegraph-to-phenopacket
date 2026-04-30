@@ -60,6 +60,14 @@ class GCIAnnotationContext:
 
 
 @dataclass
+class GCIIndividualContext:
+    individual: dict
+    individual_id: str
+    group_id: str | None
+    family_id: str | None
+
+
+@dataclass
 class GCITransformerStats:
     """Class to track statistics during transformation."""
 
@@ -97,26 +105,27 @@ class GCITransformer:
                 title=annotation.get("article", {}).get("title", ""),
             )
 
-            for individual, group_id, family_id in iter_individuals(annotation):
+            for ind_ctx in iter_individuals(annotation):
                 self.stats.total_individuals += 1
-                if not passes_filter(individual):
+                if not passes_filter(ind_ctx.individual):
                     self.stats.skipped_no_hpo += 1
-                    LOGGER.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {ann_ctx.pmid}")
+                    LOGGER.debug(f"Skipped (no HPO): {ind_ctx.individual.get('label')} — PMID {ann_ctx.pmid}")
                     continue
                 self.stats.individuals_with_hpo += 1
 
                 try:
                     pp = self.build_phenopacket(
-                        ctx, ann_ctx, individual,
-                        group_uuid=group_id,
-                        family_uuid=family_id,
+                        ctx, ann_ctx, ind_ctx.individual,
+                        individual_id=ind_ctx.individual_id,
+                        group_uuid=ind_ctx.group_id,
+                        family_uuid=ind_ctx.family_id,
                     )
                     self.stats.phenopackets_created += 1
                     yield pp
                 except Exception as e:
                     LOGGER.error(
                         f"Record {ctx.record_id}, annotation {ann_ctx.annotation_id}, "
-                        f"individual '{individual.get('label')}': {e}"
+                        f"individual '{ind_ctx.individual.get('label')}': {e}"
                     )
 
     def build_phenotypic_features(self, individual: dict, pmid: str, article_title: str) -> list:
@@ -140,12 +149,12 @@ class GCITransformer:
 
     def build_phenopacket(self, ctx: GCIRecordContext, ann_ctx: GCIAnnotationContext,
                           individual: dict,
+                          individual_id: str = "no-uuid",
                           group_uuid: str | None = None,
                           family_uuid: str | None = None) -> pps2.Phenopacket:
         """Assemble a complete Phenopacket from all parts."""
-        label = individual.get("label", "Unknown")
+        label = individual.get('label') or f'Individual: {individual_id}'
         label_s = sanitize_label(label)
-        uuid = individual.get("uuid", "no-uuid")
 
         # Disease
         diag_list = individual.get("diagnosis") or []
@@ -185,7 +194,7 @@ class GCITransformer:
         # MetaData
         ts = Timestamp()
         ts.GetCurrentTime()
-        provenance_id = build_gci_provenance_id(ctx.gdm_id, uuid, group_uuid, family_uuid)
+        provenance_id = build_gci_provenance_id(ctx.gdm_id, individual_id, group_uuid, family_uuid)
         meta_data = pps2.MetaData(
             created=ts,
             resources=list(RESOURCE_METADATA),
@@ -199,7 +208,7 @@ class GCITransformer:
         genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
 
         interpretation = pps2.Interpretation(
-            id=f"{ann_ctx.pmid}_{label_s}_{uuid}",
+            id=f"{ann_ctx.pmid}_{label_s}_{individual_id}",
             progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
             diagnosis=pps2.Diagnosis(
                 disease=pps2.OntologyClass(id=disease_id, label=disease_label),
@@ -275,25 +284,25 @@ def build_gci_provenance_id(gdm_uuid: str, individual_uuid: str,
 
 def iter_individuals(annotation: dict):
     """
-    Yield (individual_dict, group_uuid, family_uuid) for all individuals in an annotation.
-    group_uuid/family_uuid are None when the individual is not nested in that structure.
+    Yield GCIIndividualContext for all individuals in an annotation.
+    group_id/family_id are None when the individual is not nested in that structure.
     """
     for ind in annotation.get("individuals") or []:
-        yield ind, None, None
+        yield GCIIndividualContext(individual=ind, individual_id=_gci_id(ind), group_id=None, family_id=None)
 
     for family in annotation.get("families") or []:
         fam_uuid = _gci_id(family)
         for ind in family.get("individualIncluded") or []:
-            yield ind, None, fam_uuid
+            yield GCIIndividualContext(individual=ind, individual_id=_gci_id(ind), group_id=None, family_id=fam_uuid)
 
     for group in annotation.get("groups") or []:
         grp_uuid = _gci_id(group)
         for ind in group.get("individualIncluded") or []:
-            yield ind, grp_uuid, None
+            yield GCIIndividualContext(individual=ind, individual_id=_gci_id(ind), group_id=grp_uuid, family_id=None)
         for family in group.get("familyIncluded") or []:
             fam_uuid = _gci_id(family)
             for ind in family.get("individualIncluded") or []:
-                yield ind, grp_uuid, fam_uuid
+                yield GCIIndividualContext(individual=ind, individual_id=_gci_id(ind), group_id=grp_uuid, family_id=fam_uuid)
 
 
 def passes_filter(individual: dict) -> bool:

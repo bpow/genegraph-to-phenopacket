@@ -85,8 +85,8 @@ def test_collect_direct_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 2
-    assert [ind["label"] for ind, *_ in results] == ["A", "B"]
-    assert all(grp is None and fam is None for _, grp, fam in results)
+    assert [r.individual["label"] for r in results] == ["A", "B"]
+    assert all(r.group_id is None and r.family_id is None for r in results)
 
 def test_collect_family_individuals():
     annotation = {
@@ -96,9 +96,8 @@ def test_collect_family_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, grp_uuid, fam_uuid = results[0]
-    assert grp_uuid is None
-    assert fam_uuid == "fam-1"
+    assert results[0].group_id is None
+    assert results[0].family_id == "fam-1"
 
 def test_collect_family_individuals_pk_fallback():
     annotation = {
@@ -106,8 +105,7 @@ def test_collect_family_individuals_pk_fallback():
         "families": [{"PK": "fam-pk", "individualIncluded": [_make_individual("C2")]}],
         "groups": [],
     }
-    _, _, fam_uuid = list(iter_individuals(annotation))[0]
-    assert fam_uuid == "fam-pk"
+    assert list(iter_individuals(annotation))[0].family_id == "fam-pk"
 
 def test_collect_group_direct_individuals():
     annotation = {
@@ -117,9 +115,8 @@ def test_collect_group_direct_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, grp_uuid, fam_uuid = results[0]
-    assert grp_uuid == "grp-1"
-    assert fam_uuid is None
+    assert results[0].group_id == "grp-1"
+    assert results[0].family_id is None
 
 def test_collect_group_family_individuals():
     annotation = {
@@ -133,9 +130,8 @@ def test_collect_group_family_individuals():
     }
     results = list(iter_individuals(annotation))
     assert len(results) == 1
-    _, grp_uuid, fam_uuid = results[0]
-    assert grp_uuid == "grp-2"
-    assert fam_uuid == "fam-2"
+    assert results[0].group_id == "grp-2"
+    assert results[0].family_id == "fam-2"
 
 def test_collect_empty_annotation():
     annotation = {"individuals": [], "families": [], "groups": []}
@@ -434,7 +430,7 @@ def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_interpretation_id():
-    pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual())
+    pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual(), individual_id="uuid-123")
     assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
 
 def test_build_phenopacket_metadata_schema_version():
@@ -449,12 +445,12 @@ def test_build_phenopacket_metadata_resources_count():
 
 def test_build_phenopacket_provenance_direct_individual():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
-    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual())
+    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), individual_id="uuid-123")
     assert len(pp.meta_data.external_references) == 1
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
 
 def test_build_phenopacket_provenance_group_family():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
     pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(),
-                                          group_uuid="grp-1", family_uuid="fam-1")
+                                          individual_id="uuid-123", group_uuid="grp-1", family_uuid="fam-1")
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"
