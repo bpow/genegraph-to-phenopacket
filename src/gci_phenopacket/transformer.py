@@ -45,6 +45,14 @@ AGE_UNIT_MAP = {
 }
 
 @dataclass
+class GCIRecordContext:
+    record_id: str
+    gdm_id: str
+    gene_symbol: str
+    hgnc_id: str
+
+
+@dataclass
 class GCITransformerStats:
     """Class to track statistics during transformation."""
 
@@ -67,11 +75,13 @@ class GCITransformer:
     def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
         """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
         self.stats.total_records += 1
-        record_id = _gci_id(record)
         gdm = record.get("resourceParent", {}).get("gdm", {})
-        gdm_id = _gci_id(gdm)
-        gene_symbol = gdm.get("gene", {}).get("symbol", "UNKNOWN")
-        hgnc_id = gdm.get("gene", {}).get("hgncId", "")
+        ctx = GCIRecordContext(
+            record_id=_gci_id(record),
+            gdm_id=_gci_id(gdm),
+            gene_symbol=gdm.get("gene", {}).get("symbol", "UNKNOWN"),
+            hgnc_id=gdm.get("gene", {}).get("hgncId", ""),
+        )
 
         for annotation in gdm.get("annotations") or []:
             annotation_id = _gci_id(annotation)
@@ -88,10 +98,8 @@ class GCITransformer:
 
                 try:
                     pp = build_phenopacket(
-                        record_id, annotation_id,
-                        gene_symbol, hgnc_id,
+                        ctx, annotation_id,
                         pmid, title, individual, self.om,
-                        gdm_uuid=gdm_id,
                         group_uuid=group_id,
                         family_uuid=family_id,
                         preserve_freetext=self.preserve_freetext,
@@ -100,7 +108,7 @@ class GCITransformer:
                     yield pp
                 except Exception as e:
                     LOGGER.error(
-                        f"Record {record_id}, annotation {annotation_id}, "
+                        f"Record {ctx.record_id}, annotation {annotation_id}, "
                         f"individual '{individual.get('label')}': {e}"
                     )
 
@@ -308,11 +316,9 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     return results
 
 
-def build_phenopacket(record_uuid: str, annotation_uuid: str,
-                      gene_symbol: str, hgnc_id: str,
+def build_phenopacket(ctx: GCIRecordContext, annotation_uuid: str,
                       pmid: str, article_title: str,
                       individual: dict, om,
-                      gdm_uuid: str = "no-uuid",
                       group_uuid: str | None = None,
                       family_uuid: str | None = None,
                       preserve_freetext: bool = False) -> pps2.Phenopacket:
@@ -354,12 +360,12 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
         disease_label = FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{record_uuid}_{annotation_uuid}_{gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}"
+    pp_id = f"{ctx.record_id}_{annotation_uuid}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}"
 
     # MetaData
     ts = Timestamp()
     ts.GetCurrentTime()
-    provenance_id = build_gci_provenance_id(gdm_uuid, uuid, group_uuid, family_uuid)
+    provenance_id = build_gci_provenance_id(ctx.gdm_id, uuid, group_uuid, family_uuid)
     meta_data = pps2.MetaData(
         created=ts,
         resources=list(RESOURCE_METADATA),
@@ -370,7 +376,7 @@ def build_phenopacket(record_uuid: str, annotation_uuid: str,
     # Build parts
     subject = build_subject(pmid, label, individual)
     phenotypic_features = build_phenotypic_features(individual, pmid, article_title, om)
-    genomic_interps = build_genomic_interpretations(individual, pmid, label, gene_symbol, hgnc_id)
+    genomic_interps = build_genomic_interpretations(individual, pmid, label, ctx.gene_symbol, ctx.hgnc_id)
 
     interpretation = pps2.Interpretation(
         id=f"{pmid}_{label_s}_{uuid}",
