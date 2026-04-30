@@ -106,11 +106,10 @@ class GCITransformer:
                 self.stats.individuals_with_hpo += 1
 
                 try:
-                    pp = build_phenopacket(
-                        ctx, ann_ctx, individual, self.om,
+                    pp = self.build_phenopacket(
+                        ctx, ann_ctx, individual,
                         group_uuid=group_id,
                         family_uuid=family_id,
-                        preserve_freetext=self.preserve_freetext,
                     )
                     self.stats.phenopackets_created += 1
                     yield pp
@@ -119,6 +118,102 @@ class GCITransformer:
                         f"Record {ctx.record_id}, annotation {ann_ctx.annotation_id}, "
                         f"individual '{individual.get('label')}': {e}"
                     )
+
+    def build_phenotypic_features(self, individual: dict, pmid: str, article_title: str) -> list:
+        """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
+        features = []
+        for hpo_id in individual.get("hpoIdInDiagnosis", []):
+            mapped = self.om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
+            features.append(pps2.PhenotypicFeature(
+                type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
+                excluded=False,
+                evidence=_make_evidence(pmid, article_title),
+            ))
+        for hpo_id in individual.get("hpoIdInElimination", []):
+            mapped = self.om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
+            features.append(pps2.PhenotypicFeature(
+                type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
+                excluded=True,
+                evidence=_make_evidence(pmid, article_title),
+            ))
+        return features
+
+    def build_phenopacket(self, ctx: GCIRecordContext, ann_ctx: GCIAnnotationContext,
+                          individual: dict,
+                          group_uuid: str | None = None,
+                          family_uuid: str | None = None) -> pps2.Phenopacket:
+        """Assemble a complete Phenopacket from all parts."""
+        label = individual.get("label", "Unknown")
+        label_s = sanitize_label(label)
+        uuid = individual.get("uuid", "no-uuid")
+
+        # Disease
+        diag_list = individual.get("diagnosis") or []
+        diag = diag_list[0] if diag_list else {}
+        raw_disease_id = diag.get("diseaseId") or diag.get("PK") or FALLBACK_DISEASE_ID
+        raw_disease_label = diag.get("term")
+        if raw_disease_id.startswith("MONDO_"):
+            disease_id = raw_disease_id.replace("_", ":", 1)
+            disease_label = self.om.mondo_label(disease_id)
+            if disease_label is None and raw_disease_label:
+                LOGGER.warning(
+                    f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
+                )
+                disease_label = raw_disease_label
+            elif disease_label is None:
+                disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
+            elif disease_label != raw_disease_label:
+                LOGGER.warning(
+                    f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
+                )
+        elif self.preserve_freetext:
+            LOGGER.warning(
+                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
+            )
+            disease_id = raw_disease_id
+            disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
+        else:
+            LOGGER.warning(
+                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
+            )
+            disease_id = FALLBACK_DISEASE_ID
+            disease_label = FALLBACK_DISEASE_LABEL
+
+        # Phenopacket ID
+        pp_id = f"{ctx.record_id}_{ann_ctx.annotation_id}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}"
+
+        # MetaData
+        ts = Timestamp()
+        ts.GetCurrentTime()
+        provenance_id = build_gci_provenance_id(ctx.gdm_id, uuid, group_uuid, family_uuid)
+        meta_data = pps2.MetaData(
+            created=ts,
+            resources=list(RESOURCE_METADATA),
+            phenopacket_schema_version="2.0",
+            external_references=[pps2.ExternalReference(id=provenance_id)],
+        )
+
+        # Build parts
+        subject = build_subject(ann_ctx.pmid, label, individual)
+        phenotypic_features = self.build_phenotypic_features(individual, ann_ctx.pmid, ann_ctx.title)
+        genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
+
+        interpretation = pps2.Interpretation(
+            id=f"{ann_ctx.pmid}_{label_s}_{uuid}",
+            progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
+            diagnosis=pps2.Diagnosis(
+                disease=pps2.OntologyClass(id=disease_id, label=disease_label),
+                genomic_interpretations=genomic_interps,
+            ),
+        )
+
+        return pps2.Phenopacket(
+            id=pp_id,
+            subject=subject,
+            phenotypic_features=phenotypic_features,
+            interpretations=[interpretation],
+            meta_data=meta_data,
+        )
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -241,26 +336,6 @@ def _make_evidence(pmid: str, article_title: str) -> list:
     )]
 
 
-def build_phenotypic_features(individual: dict, pmid: str, article_title: str, om) -> list:
-    """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
-    features = []
-    for hpo_id in individual.get("hpoIdInDiagnosis", []):
-        mapped = om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
-        features.append(pps2.PhenotypicFeature(
-            type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
-            excluded=False,
-            evidence=_make_evidence(pmid, article_title),
-        ))
-    for hpo_id in individual.get("hpoIdInElimination", []):
-        mapped = om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
-        features.append(pps2.PhenotypicFeature(
-            type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
-            excluded=True,
-            evidence=_make_evidence(pmid, article_title),
-        ))
-    return features
-
-
 def build_genomic_interpretations(individual: dict, pmid: str, label: str,
                                    gene_symbol: str, hgnc_id: str) -> list:
     """Build one GenomicInterpretation per variant in the individual."""
@@ -324,80 +399,3 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     return results
 
 
-def build_phenopacket(ctx: GCIRecordContext, ann_ctx: GCIAnnotationContext,
-                      individual: dict, om,
-                      group_uuid: str | None = None,
-                      family_uuid: str | None = None,
-                      preserve_freetext: bool = False) -> pps2.Phenopacket:
-    """Assemble a complete Phenopacket from all parts."""
-    label = individual.get("label", "Unknown")
-    label_s = sanitize_label(label)
-    uuid = individual.get("uuid", "no-uuid")
-
-    # Disease
-    diag_list = individual.get("diagnosis") or []
-    diag = diag_list[0] if diag_list else {}
-    raw_disease_id = diag.get("diseaseId") or diag.get("PK") or FALLBACK_DISEASE_ID
-    raw_disease_label = diag.get("term")
-    if raw_disease_id.startswith("MONDO_"):
-        disease_id = raw_disease_id.replace("_", ":", 1)
-        disease_label = om.mondo_label(disease_id)
-        if disease_label is None and raw_disease_label:
-            LOGGER.warning(
-                f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
-            )
-            disease_label = raw_disease_label
-        elif disease_label is None:
-            disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
-        elif disease_label != raw_disease_label:
-            LOGGER.warning(
-                f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
-            )
-    elif preserve_freetext:
-        LOGGER.warning(
-            f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
-        )
-        disease_id = raw_disease_id
-        disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
-    else:
-        LOGGER.warning(
-            f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
-        )
-        disease_id = FALLBACK_DISEASE_ID
-        disease_label = FALLBACK_DISEASE_LABEL
-
-    # Phenopacket ID
-    pp_id = f"{ctx.record_id}_{ann_ctx.annotation_id}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}"
-
-    # MetaData
-    ts = Timestamp()
-    ts.GetCurrentTime()
-    provenance_id = build_gci_provenance_id(ctx.gdm_id, uuid, group_uuid, family_uuid)
-    meta_data = pps2.MetaData(
-        created=ts,
-        resources=list(RESOURCE_METADATA),
-        phenopacket_schema_version="2.0",
-        external_references=[pps2.ExternalReference(id=provenance_id)],
-    )
-
-    # Build parts
-    subject = build_subject(ann_ctx.pmid, label, individual)
-    phenotypic_features = build_phenotypic_features(individual, ann_ctx.pmid, ann_ctx.title, om)
-    genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
-
-    interpretation = pps2.Interpretation(
-        id=f"{ann_ctx.pmid}_{label_s}_{uuid}",
-        progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
-        diagnosis=pps2.Diagnosis(
-            disease=pps2.OntologyClass(id=disease_id, label=disease_label),
-            genomic_interpretations=genomic_interps,
-        ),
-    )
-
-    return pps2.Phenopacket(
-        id=pp_id,
-        subject=subject,
-        phenotypic_features=phenotypic_features,
-        interpretations=[interpretation],
-        meta_data=meta_data,
-    )

@@ -8,7 +8,7 @@ import click
 from google.protobuf.json_format import MessageToJson
 
 from gci_phenopacket.ontologies import OntologyManager
-from gci_phenopacket.transformer import GCITransformer, iter_individuals, passes_filter, build_phenopacket
+from gci_phenopacket.transformer import GCITransformer
 
 logger = logging.getLogger(__name__)
 
