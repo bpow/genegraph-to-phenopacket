@@ -186,8 +186,7 @@ class GCITransformer:
         disease_id, disease_label = self.process_diagnosis(diag)
 
         # Phenopacket ID
-        prov_s = sanitize_label(provenance_id or "")
-        pp_id = f"{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}_{ctx.record_id}_{ctx.gdm_id}_{ann_ctx.annotation_id}_{prov_s}"
+        pp_id = f"{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}_{ctx.record_id}_{ctx.gdm_id}_{ann_ctx.annotation_id}"
 
         # MetaData
         ts = Timestamp()
@@ -207,7 +206,7 @@ class GCITransformer:
         genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
 
         interpretation = pps2.Interpretation(
-            id=f"{ann_ctx.pmid}_{label_s}_{prov_s}",
+            id=pp_id,
             progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
             diagnosis=pps2.Diagnosis(
                 disease=pps2.OntologyClass(id=disease_id, label=disease_label),

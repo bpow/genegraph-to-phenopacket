@@ -392,7 +392,7 @@ def test_build_phenopacket_id_format():
     ann_ctx = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="12345", title="Title")
     prov = build_gci_provenance_id(CTX.gdm_id, "uuid-123")
     pp = _transformer().build_phenopacket(CTX, ann_ctx, _base_individual(), provenance_id=prov)
-    assert pp.id == "DSG2_MONDO_0016587_12345_Test_Patient_aaaa-1111_no-uuid_bbbb-2222_gdm-no-uuid-individual-uuid-123"
+    assert pp.id == "DSG2_MONDO_0016587_12345_Test_Patient_aaaa-1111_no-uuid_bbbb-2222"
 
 def test_build_phenopacket_diagnosis_uses_colon_form():
     # Diagnosis disease.id must use colon format even though ID uses underscore
@@ -432,7 +432,7 @@ def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
 def test_build_phenopacket_interpretation_id():
     prov = build_gci_provenance_id(CTX.gdm_id, "uuid-123")
     pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual(), provenance_id=prov)
-    assert pp.interpretations[0].id == "99_Test_Patient_gdm-no-uuid-individual-uuid-123"
+    assert pp.interpretations[0].id == "DSG2_MONDO_0016587_99_Test_Patient_aaaa-1111_no-uuid_bbbb-2222"
 
 def test_build_phenopacket_metadata_schema_version():
     pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual())
