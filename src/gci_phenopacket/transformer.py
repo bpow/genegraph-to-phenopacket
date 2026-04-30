@@ -136,14 +136,14 @@ class GCITransformer:
             features.append(pps2.PhenotypicFeature(
                 type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
                 excluded=False,
-                evidence=_make_evidence(pmid, article_title),
+                evidence=[_make_evidence(pmid, article_title)],
             ))
         for hpo_id in individual.get("hpoIdInElimination", []):
             mapped = self.om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
             features.append(pps2.PhenotypicFeature(
                 type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
                 excluded=True,
-                evidence=_make_evidence(pmid, article_title),
+                evidence=[_make_evidence(pmid, article_title)],
             ))
         return features
 
@@ -332,8 +332,8 @@ def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     return pps2.Individual(**kwargs)
 
 
-def _make_evidence(pmid: str, article_title: str) -> list:
-    return [pps2.Evidence(
+def _make_evidence(pmid: str, article_title: str) -> pps2.Evidence:
+    return pps2.Evidence(
         reference=pps2.ExternalReference(
             id=f"PMID:{pmid}",
             description=article_title or "",
@@ -342,7 +342,7 @@ def _make_evidence(pmid: str, article_title: str) -> list:
             id="ECO:0000304",
             label="author statement supported by traceable reference used in manual assertion",
         ),
-    )]
+    )
 
 
 def build_genomic_interpretations(individual: dict, pmid: str, label: str,
