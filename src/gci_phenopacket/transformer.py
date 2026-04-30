@@ -53,6 +53,13 @@ class GCIRecordContext:
 
 
 @dataclass
+class GCIAnnotationContext:
+    annotation_id: str
+    pmid: str
+    title: str
+
+
+@dataclass
 class GCITransformerStats:
     """Class to track statistics during transformation."""
 
@@ -84,22 +91,23 @@ class GCITransformer:
         )
 
         for annotation in gdm.get("annotations") or []:
-            annotation_id = _gci_id(annotation)
-            pmid = annotation.get("article", {}).get("pmid", "UNKNOWN")
-            title = annotation.get("article", {}).get("title", "")
+            ann_ctx = GCIAnnotationContext(
+                annotation_id=_gci_id(annotation),
+                pmid=annotation.get("article", {}).get("pmid", "UNKNOWN"),
+                title=annotation.get("article", {}).get("title", ""),
+            )
 
             for individual, group_id, family_id in iter_individuals(annotation):
                 self.stats.total_individuals += 1
                 if not passes_filter(individual):
                     self.stats.skipped_no_hpo += 1
-                    LOGGER.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {pmid}")
+                    LOGGER.debug(f"Skipped (no HPO): {individual.get('label')} — PMID {ann_ctx.pmid}")
                     continue
                 self.stats.individuals_with_hpo += 1
 
                 try:
                     pp = build_phenopacket(
-                        ctx, annotation_id,
-                        pmid, title, individual, self.om,
+                        ctx, ann_ctx, individual, self.om,
                         group_uuid=group_id,
                         family_uuid=family_id,
                         preserve_freetext=self.preserve_freetext,
@@ -108,7 +116,7 @@ class GCITransformer:
                     yield pp
                 except Exception as e:
                     LOGGER.error(
-                        f"Record {ctx.record_id}, annotation {annotation_id}, "
+                        f"Record {ctx.record_id}, annotation {ann_ctx.annotation_id}, "
                         f"individual '{individual.get('label')}': {e}"
                     )
 
@@ -316,8 +324,7 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     return results
 
 
-def build_phenopacket(ctx: GCIRecordContext, annotation_uuid: str,
-                      pmid: str, article_title: str,
+def build_phenopacket(ctx: GCIRecordContext, ann_ctx: GCIAnnotationContext,
                       individual: dict, om,
                       group_uuid: str | None = None,
                       family_uuid: str | None = None,
@@ -360,7 +367,7 @@ def build_phenopacket(ctx: GCIRecordContext, annotation_uuid: str,
         disease_label = FALLBACK_DISEASE_LABEL
 
     # Phenopacket ID
-    pp_id = f"{ctx.record_id}_{annotation_uuid}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{pmid}_{label_s}"
+    pp_id = f"{ctx.record_id}_{ann_ctx.annotation_id}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}"
 
     # MetaData
     ts = Timestamp()
@@ -374,12 +381,12 @@ def build_phenopacket(ctx: GCIRecordContext, annotation_uuid: str,
     )
 
     # Build parts
-    subject = build_subject(pmid, label, individual)
-    phenotypic_features = build_phenotypic_features(individual, pmid, article_title, om)
-    genomic_interps = build_genomic_interpretations(individual, pmid, label, ctx.gene_symbol, ctx.hgnc_id)
+    subject = build_subject(ann_ctx.pmid, label, individual)
+    phenotypic_features = build_phenotypic_features(individual, ann_ctx.pmid, ann_ctx.title, om)
+    genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
 
     interpretation = pps2.Interpretation(
-        id=f"{pmid}_{label_s}_{uuid}",
+        id=f"{ann_ctx.pmid}_{label_s}_{uuid}",
         progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
         diagnosis=pps2.Diagnosis(
             disease=pps2.OntologyClass(id=disease_id, label=disease_label),

@@ -359,7 +359,7 @@ def test_variant_prefers_variants_over_variant_scores():
     assert interps[0].variant_interpretation.variation_descriptor.id == "caid:CA_DIRECT"
 
 
-from gci_phenopacket.transformer import build_phenopacket, GCIRecordContext
+from gci_phenopacket.transformer import build_phenopacket, GCIRecordContext, GCIAnnotationContext
 
 def _make_om_with_mondo():
     om = MagicMock()
@@ -387,68 +387,71 @@ def _base_individual():
 REC_UUID = "aaaa-1111"
 ANN_UUID = "bbbb-2222"
 CTX = GCIRecordContext(record_id=REC_UUID, gdm_id="no-uuid", gene_symbol="DSG2", hgnc_id="HGNC:3049")
+ANN_CTX = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="99", title="T")
 
 def test_build_phenopacket_id_format():
     # ID should use record and annotation UUIDs instead of positional indices
-    pp = build_phenopacket(CTX, ANN_UUID, "12345", "Title", _base_individual(), _make_om_with_mondo())
+    ann_ctx = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="12345", title="Title")
+    pp = build_phenopacket(CTX, ann_ctx, _base_individual(), _make_om_with_mondo())
     assert pp.id == "aaaa-1111_bbbb-2222_DSG2_MONDO_0016587_12345_Test_Patient"
 
 def test_build_phenopacket_diagnosis_uses_colon_form():
     # Diagnosis disease.id must use colon format even though ID uses underscore
-    pp = build_phenopacket(CTX, ANN_UUID, "12345", "Title", _base_individual(), _make_om_with_mondo())
+    ann_ctx = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="12345", title="Title")
+    pp = build_phenopacket(CTX, ann_ctx, _base_individual(), _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_subject_id():
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, _base_individual(), _make_om_with_mondo())
     assert pp.subject.id == "PMID_99:Test Patient"
 
 def test_build_phenopacket_freetext_disease_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = [{"diseaseId": "FREETEXT_abc"}]
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", ind, _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
     assert pp.interpretations[0].diagnosis.disease.label == "human disease"
 
 def test_build_phenopacket_empty_diagnosis_defaults_to_fallback():
     ind = _base_individual()
     ind["diagnosis"] = []
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", ind, _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0700096"
 
 def test_build_phenopacket_diagnosis_uses_pk_when_no_disease_id():
     ind = _base_individual()
     ind["diagnosis"] = [{"PK": "MONDO_0016587"}]
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", ind, _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
     ind = _base_individual()
     ind["diagnosis"] = [{"diseaseId": "MONDO_0016587", "PK": "MONDO_0054748"}]
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", ind, _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, ind, _make_om_with_mondo())
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_interpretation_id():
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, _base_individual(), _make_om_with_mondo())
     assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
 
 def test_build_phenopacket_metadata_schema_version():
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, _base_individual(), _make_om_with_mondo())
     assert pp.meta_data.phenopacket_schema_version == "2.0"
 
 def test_build_phenopacket_metadata_resources_count():
-    pp = build_phenopacket(CTX, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo())
+    pp = build_phenopacket(CTX, ANN_CTX, _base_individual(), _make_om_with_mondo())
     assert len(pp.meta_data.resources) == 4
     resource_ids = {r.id for r in pp.meta_data.resources}
     assert resource_ids == {"hp", "mondo", "geno", "eco"}
 
 def test_build_phenopacket_provenance_direct_individual():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
-    pp = build_phenopacket(ctx, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo())
+    pp = build_phenopacket(ctx, ANN_CTX, _base_individual(), _make_om_with_mondo())
     assert len(pp.meta_data.external_references) == 1
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
 
 def test_build_phenopacket_provenance_group_family():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
-    pp = build_phenopacket(ctx, ANN_UUID, "99", "T", _base_individual(), _make_om_with_mondo(),
+    pp = build_phenopacket(ctx, ANN_CTX, _base_individual(), _make_om_with_mondo(),
                            group_uuid="grp-1", family_uuid="fam-1")
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"
