@@ -389,10 +389,10 @@ CTX = GCIRecordContext(record_id=REC_UUID, gdm_id="no-uuid", gene_symbol="DSG2",
 ANN_CTX = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="99", title="T")
 
 def test_build_phenopacket_id_format():
-    # ID should use record and annotation UUIDs instead of positional indices
     ann_ctx = GCIAnnotationContext(annotation_id=ANN_UUID, pmid="12345", title="Title")
-    pp = _transformer().build_phenopacket(CTX, ann_ctx, _base_individual())
-    assert pp.id == "aaaa-1111_bbbb-2222_DSG2_MONDO_0016587_12345_Test_Patient"
+    prov = build_gci_provenance_id(CTX.gdm_id, "uuid-123")
+    pp = _transformer().build_phenopacket(CTX, ann_ctx, _base_individual(), provenance_id=prov)
+    assert pp.id == "DSG2_MONDO_0016587_12345_Test_Patient_aaaa-1111_no-uuid_bbbb-2222_gdm-no-uuid-individual-uuid-123"
 
 def test_build_phenopacket_diagnosis_uses_colon_form():
     # Diagnosis disease.id must use colon format even though ID uses underscore
@@ -430,8 +430,9 @@ def test_build_phenopacket_diagnosis_prefers_disease_id_over_pk():
     assert pp.interpretations[0].diagnosis.disease.id == "MONDO:0016587"
 
 def test_build_phenopacket_interpretation_id():
-    pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual(), individual_id="uuid-123")
-    assert pp.interpretations[0].id == "99_Test_Patient_uuid-123"
+    prov = build_gci_provenance_id(CTX.gdm_id, "uuid-123")
+    pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual(), provenance_id=prov)
+    assert pp.interpretations[0].id == "99_Test_Patient_gdm-no-uuid-individual-uuid-123"
 
 def test_build_phenopacket_metadata_schema_version():
     pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual())
@@ -445,12 +446,13 @@ def test_build_phenopacket_metadata_resources_count():
 
 def test_build_phenopacket_provenance_direct_individual():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
-    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), individual_id="uuid-123")
+    prov = build_gci_provenance_id("gdm-abc", "uuid-123")
+    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), provenance_id=prov)
     assert len(pp.meta_data.external_references) == 1
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
 
 def test_build_phenopacket_provenance_group_family():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
-    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(),
-                                          individual_id="uuid-123", group_uuid="grp-1", family_uuid="fam-1")
+    prov = build_gci_provenance_id("gdm-abc", "uuid-123", group_uuid="grp-1", family_uuid="fam-1")
+    pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), provenance_id=prov)
     assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"

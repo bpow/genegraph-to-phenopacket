@@ -61,7 +61,7 @@ pixi run test
 - Vital status is only set when `ageType == "Death"` — omitted otherwise
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
-- Phenopacket ID format: `{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{tag}`
+- Phenopacket ID format: `{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}_{individual_uuid}`
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `GCIIndividualContext` (fields: `individual`, `individual_id`, `group_id`, `family_id`) for all nesting levels

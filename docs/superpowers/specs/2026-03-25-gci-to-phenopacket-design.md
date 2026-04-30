@@ -125,15 +125,15 @@ for file_index, line in enumerate(jsonl_file):
 
 | Field | Value |
 |---|---|
-| `id` | `{file_index}_{annotation_index}_{gene_symbol}_{mondo_id}_{pmid}_{individual_label_sanitized}_{g/f/i}` |
+| `id` | `{gene_symbol}_{mondo_id}_{pmid}_{individual_label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}_{individual_uuid}` |
 | `meta_data.resources` | HPO, Mondo, GENO, and ECO resource entries (see below) |
 | `meta_data.phenopacket_schema_version` | `"2.0"` |
 | `meta_data.created` | current UTC timestamp: `ts = Timestamp(); ts.GetCurrentTime()` |
 
 **ID construction notes:**
-- `annotation_index` is the 0-based index of the annotation within the GDM record — prevents ID collision when the same individual label + PMID appears in multiple annotations
 - `individual_label_sanitized`: spaces replaced with `_`, colons with `-`
-- `mondo_id` is taken from `individual.diagnosis[0].diseaseId` sanitized to remove `:` (e.g. `MONDO_0016587`)
+- `mondo_id` is taken from `individual.diagnosis[0].diseaseId` with `:` replaced by `_` (e.g. `MONDO_0016587`)
+- UUIDs (`record_uuid`, `gdm_uuid`, `annotation_uuid`, `individual_uuid`) come from the GCI `uuid`/`PK` fields; fall back to `"no-uuid"` when absent
 - The output filename is `{phenopacket_id}.json` using the same sanitized ID
 
 ### Subject (Individual)

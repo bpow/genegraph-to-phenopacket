@@ -114,12 +114,11 @@ class GCITransformer:
                 self.stats.individuals_with_hpo += 1
 
                 try:
-                    pp = self.build_phenopacket(
-                        ctx, ann_ctx, ind_ctx.individual,
-                        individual_id=ind_ctx.individual_id,
-                        group_uuid=ind_ctx.group_id,
-                        family_uuid=ind_ctx.family_id,
+                    prov_id = build_gci_provenance_id(
+                        ctx.gdm_id, ind_ctx.individual_id,
+                        ind_ctx.group_id, ind_ctx.family_id,
                     )
+                    pp = self.build_phenopacket(ctx, ann_ctx, ind_ctx.individual, provenance_id=prov_id)
                     self.stats.phenopackets_created += 1
                     yield pp
                 except Exception as e:
@@ -147,60 +146,60 @@ class GCITransformer:
             ))
         return features
 
+    def process_diagnosis(self, diagnosis: dict) -> tuple[str, str]:
+        raw_disease_id = diagnosis.get("diseaseId") or diagnosis.get("PK") or FALLBACK_DISEASE_ID
+        raw_disease_label = diagnosis.get("term")
+        if raw_disease_id.startswith("MONDO_"):
+            disease_id = raw_disease_id.replace("_", ":", 1)
+            disease_label = self.om.mondo_label(disease_id)
+            if disease_label is None:
+                disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
+                LOGGER.warning(
+                    f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{disease_label}'"
+                )
+                return disease_id, disease_label
+            elif disease_label != raw_disease_label:
+                LOGGER.warning(
+                    f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
+                )
+                return disease_id, disease_label
+        elif self.preserve_freetext:
+            LOGGER.warning(
+                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
+            )
+            return raw_disease_id, raw_disease_label or FALLBACK_DISEASE_LABEL
+        else:
+            LOGGER.warning(
+                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
+            )
+            return FALLBACK_DISEASE_ID, FALLBACK_DISEASE_LABEL
+
     def build_phenopacket(self, ctx: GCIRecordContext, ann_ctx: GCIAnnotationContext,
-                          individual: dict,
-                          individual_id: str = "no-uuid",
-                          group_uuid: str | None = None,
-                          family_uuid: str | None = None) -> pps2.Phenopacket:
+                          individual: dict, provenance_id: str | None = None) -> pps2.Phenopacket:
         """Assemble a complete Phenopacket from all parts."""
-        label = individual.get('label') or f'Individual: {individual_id}'
+        label = individual.get('label') or f'Individual: {provenance_id}'
         label_s = sanitize_label(label)
 
         # Disease
         diag_list = individual.get("diagnosis") or []
         diag = diag_list[0] if diag_list else {}
-        raw_disease_id = diag.get("diseaseId") or diag.get("PK") or FALLBACK_DISEASE_ID
-        raw_disease_label = diag.get("term")
-        if raw_disease_id.startswith("MONDO_"):
-            disease_id = raw_disease_id.replace("_", ":", 1)
-            disease_label = self.om.mondo_label(disease_id)
-            if disease_label is None and raw_disease_label:
-                LOGGER.warning(
-                    f"MONDO ID '{disease_id}' not found in ontology — falling back to label '{raw_disease_label}'"
-                )
-                disease_label = raw_disease_label
-            elif disease_label is None:
-                disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
-            elif disease_label != raw_disease_label:
-                LOGGER.warning(
-                    f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
-                )
-        elif self.preserve_freetext:
-            LOGGER.warning(
-                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
-            )
-            disease_id = raw_disease_id
-            disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
-        else:
-            LOGGER.warning(
-                f"Unrecognized disease ID format '{raw_disease_id}' — falling back to {FALLBACK_DISEASE_ID} with label '{FALLBACK_DISEASE_LABEL}'"
-            )
-            disease_id = FALLBACK_DISEASE_ID
-            disease_label = FALLBACK_DISEASE_LABEL
+        disease_id, disease_label = self.process_diagnosis(diag)
 
         # Phenopacket ID
-        pp_id = f"{ctx.record_id}_{ann_ctx.annotation_id}_{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}"
+        prov_s = sanitize_label(provenance_id or "")
+        pp_id = f"{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}_{ctx.record_id}_{ctx.gdm_id}_{ann_ctx.annotation_id}_{prov_s}"
 
         # MetaData
         ts = Timestamp()
         ts.GetCurrentTime()
-        provenance_id = build_gci_provenance_id(ctx.gdm_id, individual_id, group_uuid, family_uuid)
-        meta_data = pps2.MetaData(
+        metadata_kwargs = dict(
             created=ts,
             resources=list(RESOURCE_METADATA),
             phenopacket_schema_version="2.0",
-            external_references=[pps2.ExternalReference(id=provenance_id)],
         )
+        if provenance_id:
+            metadata_kwargs["external_references"] = [pps2.ExternalReference(id=provenance_id)]
+        meta_data = pps2.MetaData(**metadata_kwargs)
 
         # Build parts
         subject = build_subject(ann_ctx.pmid, label, individual)
@@ -208,7 +207,7 @@ class GCITransformer:
         genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
 
         interpretation = pps2.Interpretation(
-            id=f"{ann_ctx.pmid}_{label_s}_{individual_id}",
+            id=f"{ann_ctx.pmid}_{label_s}_{prov_s}",
             progress_status=pps2.Interpretation.ProgressStatus.UNKNOWN_PROGRESS,
             diagnosis=pps2.Diagnosis(
                 disease=pps2.OntologyClass(id=disease_id, label=disease_label),
