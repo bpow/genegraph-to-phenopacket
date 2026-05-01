@@ -191,14 +191,15 @@ class GCITransformer:
         # MetaData
         ts = Timestamp()
         ts.GetCurrentTime()
-        metadata_kwargs = dict(
+        ext_refs = [pps2.ExternalReference(id=f"PMID:{ann_ctx.pmid}", description=ann_ctx.title)]
+        if provenance_id:
+            ext_refs.append(pps2.ExternalReference(id=provenance_id))
+        meta_data = pps2.MetaData(
             created=ts,
             resources=list(RESOURCE_METADATA),
             phenopacket_schema_version="2.0",
+            external_references=ext_refs,
         )
-        if provenance_id:
-            metadata_kwargs["external_references"] = [pps2.ExternalReference(id=provenance_id)]
-        meta_data = pps2.MetaData(**metadata_kwargs)
 
         # Build parts
         subject = build_subject(ann_ctx.pmid, label, individual)

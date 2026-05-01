@@ -444,15 +444,25 @@ def test_build_phenopacket_metadata_resources_count():
     resource_ids = {r.id for r in pp.meta_data.resources}
     assert resource_ids == {"hp", "mondo", "geno", "eco"}
 
+def test_build_phenopacket_pmid_external_reference():
+    pp = _transformer().build_phenopacket(CTX, ANN_CTX, _base_individual())
+    ref_ids = [r.id for r in pp.meta_data.external_references]
+    assert f"PMID:{ANN_CTX.pmid}" in ref_ids
+    pmid_ref = next(r for r in pp.meta_data.external_references if r.id == f"PMID:{ANN_CTX.pmid}")
+    assert pmid_ref.description == ANN_CTX.title
+
 def test_build_phenopacket_provenance_direct_individual():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
     prov = build_gci_provenance_id("gdm-abc", "uuid-123")
     pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), provenance_id=prov)
-    assert len(pp.meta_data.external_references) == 1
-    assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-individual:uuid-123"
+    assert len(pp.meta_data.external_references) == 2
+    ref_ids = [r.id for r in pp.meta_data.external_references]
+    assert f"PMID:{ANN_CTX.pmid}" in ref_ids
+    assert "gdm:gdm-abc-individual:uuid-123" in ref_ids
 
 def test_build_phenopacket_provenance_group_family():
     ctx = GCIRecordContext(record_id=REC_UUID, gdm_id="gdm-abc", gene_symbol="DSG2", hgnc_id="HGNC:3049")
     prov = build_gci_provenance_id("gdm-abc", "uuid-123", group_uuid="grp-1", family_uuid="fam-1")
     pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), provenance_id=prov)
-    assert pp.meta_data.external_references[0].id == "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123"
+    ref_ids = [r.id for r in pp.meta_data.external_references]
+    assert "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123" in ref_ids

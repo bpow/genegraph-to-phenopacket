@@ -71,6 +71,7 @@ pixi run test
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
 - Phenopacket ID format: `{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}`
+- `metadata.external_references` always contains `PMID:{pmid}` (with article title as description); when a provenance ID is present it is appended as a second entry (`gdm:...`)
 - Output files are written to `{output_dir}/{gene_symbol}/{phenopacket_id}.json` by default; `--no-subdirs` / `-S` writes them flat into `{output_dir}/`
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning

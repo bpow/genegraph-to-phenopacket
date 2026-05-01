@@ -170,3 +170,7 @@ Read from `individual.recessiveZygosity`. Mapped to GENO terms:
 | `Unknown` / unrecognised | `GENO:0000137` (unspecified) |
 
 If `recessiveZygosity` is absent, allelic state is omitted from the phenopacket.
+
+### Metadata External References
+
+`metadata.external_references` always includes the source article as `PMID:{pmid}` (with the article title as `description`). When the individual has a resolvable provenance path through the GCI data model, a second entry is appended in the form `gdm:{gdm_id}-[group:{group_id}-][family:{family_id}-]individual:{individual_id}`.
