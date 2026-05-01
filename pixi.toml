@@ -7,6 +7,8 @@ version = "0.1.0"
 
 [tasks]
 gci_transform = {cmd = "python -m gci_phenopacket.cli", env = {PYTHONPATH = "src"}}
+stdin = {cmd = "python -m gci_phenopacket.cli -i /dev/stdin -l WARNING", env = {PYTHONPATH = "src"}}
+combine_yaml = {cmd = "bash scripts/combine_yaml.sh", description = "Concatenate all output phenopacket JSON files into a single YAML stream (requires yq on PATH)"}
 test = {cmd = "python -m pytest tests/ -v", env = {PYTHONPATH = "src"}}
 
 [dependencies]

@@ -18,6 +18,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |
+| `scripts/combine_yaml.sh` | Concatenate all output JSON phenopackets into a single YAML stream (requires `yq` on PATH) |
 
 ## Running the Pipeline
 
@@ -46,10 +47,21 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdi
 # Pipe logs to a file
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl > run.log
 
+# Pipe JSONL from stdin (reads /dev/stdin, log level fixed at WARNING)
+zcat gene_validity_raw.jsonl.gz | pixi run stdin
+grep '"gene":"BRCA1"' data/gci/snapshot.jsonl | pixi run stdin
+
 # Once installed as a package (from any directory)
 pip install .
 gci-transform --input /path/to/snapshot.jsonl
 ```
+
+## Combining Output into YAML
+
+`pixi run combine_yaml` concatenates every `*.json` under `gci_phenopackets/` into a
+single multi-document YAML stream. It requires [`yq`](https://github.com/mikefarah/yq)
+to be installed and on `PATH` (not managed by Pixi — install separately, e.g.
+`brew install yq`).
 
 ## Running Tests
 
