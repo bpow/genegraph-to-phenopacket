@@ -182,6 +182,8 @@ class GCITransformer:
 
         # Disease
         diag_list = individual.get("diagnosis") or []
+        if len(diag_list) > 1:
+            raise ValueError(f"Multiple diagnoses found for individual '{label}' — only one diagnosis is supported per phenopacket. It seems like maybe the GCI structure changed and we need to update the transformer? Diagnosis data: {diag_list}")
         diag = diag_list[0] if diag_list else {}
         disease_id, disease_label = self.process_diagnosis(diag)
 
