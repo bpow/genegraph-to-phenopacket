@@ -25,7 +25,7 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 # Full run (prompts for --input if omitted)
 pixi run gci_transform
 
-# With explicit input (output defaults to ./gci_phenopackets/ in cwd)
+# With explicit input (output written to ./gci_phenopackets/{gene_symbol}/ subdirs)
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl
 
 # Custom output directory
@@ -33,6 +33,15 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --output /
 
 # Single record (0-based line index)
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --record 0
+
+# Control log verbosity (DEBUG, INFO, WARNING, ERROR)
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --log-level DEBUG
+
+# Preserve freetext disease terms instead of falling back to MONDO:0700096
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --preserve-freetext
+
+# Write all files flat into the output dir (no per-gene subdirectories)
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdirs
 
 # Pipe logs to a file
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl > run.log
@@ -61,7 +70,8 @@ pixi run test
 - Vital status is only set when `ageType == "Death"` — omitted otherwise
 - Evidence code: `ECO:0000304` ("author statement supported by traceable reference used in manual assertion")
 - Variant IDs are prefixed: `caid:CA123` or `clinvar:789`
-- Phenopacket ID format: `{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}_{individual_uuid}`
+- Phenopacket ID format: `{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}`
+- Output files are written to `{output_dir}/{gene_symbol}/{phenopacket_id}.json` by default; `--no-subdirs` / `-S` writes them flat into `{output_dir}/`
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `GCIIndividualContext` (fields: `individual`, `individual_id`, `group_id`, `family_id`) for all nesting levels

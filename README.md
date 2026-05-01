@@ -8,15 +8,11 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces **GA4GH P
 src/gci_phenopacket/
   cli.py               # Click CLI entry point and JSONL processing loop
   transformer.py       # All GCI → Phenopacket field mapping logic
-  utils/
-    ontologies.py      # OntologyManager: HP and Mondo via pronto (cached)
-    logger.py          # Stdout logging setup
-    paths.py           # Platform cache directory via platformdirs
+  ontologies.py        # OntologyManager: HP and Mondo via oaklib sqlite adapter
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
   test_cli.py              # CLI integration tests
-  test_logger.py           # Logger setup tests
   test_ontologies.py       # Ontology caching and lookup tests
 
 data/
@@ -77,27 +73,35 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --record 0
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl > run.log
 ```
 
-Output files are named after their Phenopacket ID:
+**Control logging verbosity:**
+
+```bash
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --log-level DEBUG
+```
+
+**Preserve freetext disease terms instead of replacing with fallback "human disease":**
+
+```bash
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --preserve-freetext
+```
+
+**Write all output files flat into the output directory (no per-gene subdirectories):**
+
+```bash
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdirs
+```
+
+By default, output files are written to gene-name subdirectories under the output directory, named after their Phenopacket ID:
 
 ```
-{record_uuid}_{annotation_uuid}_{gene_symbol}_{mondo_id}_{pmid}_{individual_label}_{tag}.json
+{output}/{gene_symbol}/{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}.json
 ```
 
-For example: `edf01b6b-af07-4c70-b807-4bbec8830d8a_07090d6b-ef0a-404b-8621-ca9a4a309f4f_DSG2_MONDO_0016587_16505173_Patient_1_individual.json`
-
-The `tag` indicates how the individual was nested in the GCI record: `individual` (direct), `family`, or `group`.
+For example: `gci_phenopackets/DSG2/DSG2_MONDO_0016587_16505173_Patient_1_edf01b6b-af07-4c70-b807-4bbec8830d8a_07090d6b-ef0a-404b-8621-ca9a4a309f4f_8a1b2c3d-ef01-2345-6789-abcdef012345.json`
 
 ## Ontology Cache
 
-Ontologies (HP and Mondo) are downloaded on first run and cached locally so subsequent runs are fast:
-
-| Platform | Cache location |
-|---|---|
-| macOS | `~/Library/Caches/gci-phenopacket/ontologies/` |
-| Linux | `~/.cache/gci-phenopacket/ontologies/` |
-| Windows | `%LOCALAPPDATA%\gci-phenopacket\Cache\ontologies\` |
-
-GENO zygosity terms are hardcoded in `transformer.py` and do not require a download.
+Ontologies (HP and Mondo) are downloaded on first run via oaklib's sqlite adapter and cached automatically by oaklib. Subsequent runs reuse the cached databases. GENO zygosity terms are hardcoded in `transformer.py` and do not require a download.
 
 ## Individual Filtering
 
