@@ -64,7 +64,7 @@ def test_cli_record_flag_processes_only_that_line(tmp_path, monkeypatch):
 
     runner = CliRunner()
     with patch("gci_phenopacket.cli.OntologyManager", return_value=mock_om()):
-        result = runner.invoke(main, ["--input", str(two_records), "--record", "0"])
+        result = runner.invoke(main, ["--input", str(two_records), "--record", "0", "-S"])
 
     assert result.exit_code == 0
     written = list((tmp_path / "gci_phenopackets").glob("*.json"))

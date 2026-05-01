@@ -46,15 +46,19 @@ logger = logging.getLogger(__name__)
     default=False,
     help="Preserve freetext phenotypes instead of replacing with fallback 'human disease'",
 )
-def main(input_path, output_path, record, log_level, preserve_freetext):
+@click.option(
+    "--subdirs/--no-subdirs", "-s/-S",
+    default=True,
+    show_default=True,
+    help="Create per-gene subdirectories under the output directory",
+)
+def main(input_path, output_path, record, log_level, preserve_freetext, subdirs):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""
     logging.basicConfig(
         level=log_level.upper(),
         stream=sys.stdout,
         format="%(levelname)s: %(message)s",
     )
-
-    output_path.mkdir(parents=True, exist_ok=True)
 
     try:
         om = OntologyManager()
@@ -82,7 +86,10 @@ def main(input_path, output_path, record, log_level, preserve_freetext):
                 continue
 
             for pp in transformer.phenopackets_from_gci_record(rec):
-                out_path = output_path / f"{pp.id}.json"
+                out_dir = output_path / pp.id.split('_', 1)[0] if subdirs else output_path
+                out_dir.mkdir(parents=True, exist_ok=True)
+
+                out_path = out_dir / f"{pp.id}.json"
                 with open(out_path, "w", encoding="utf-8") as out_f:
                     out_f.write(MessageToJson(pp, indent=2))
                 logger.info(f"Saved: {out_path.name}")
