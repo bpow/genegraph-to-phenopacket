@@ -162,7 +162,7 @@ class GCITransformer:
                 LOGGER.warning(
                     f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
                 )
-                return disease_id, disease_label
+            return disease_id, disease_label
         elif self.preserve_freetext:
             LOGGER.warning(
                 f"Unrecognized disease ID format '{raw_disease_id}' — falling back to label '{raw_disease_label or FALLBACK_DISEASE_LABEL}'"
@@ -228,7 +228,8 @@ class GCITransformer:
 
 def sanitize_label(label: str) -> str:
     """Replace spaces with _ and colons with - for safe use in IDs/filenames."""
-    return label.replace(" ", "_").replace(":", "-")
+    label = label.replace('\x00', '').replace(" ", "_").replace(":", "-").replace('/', '-')
+    return label
 
 
 def extract_hpo_id(raw: str) -> str:
