@@ -159,7 +159,7 @@ class GCITransformer:
                 )
                 return disease_id, disease_label
             elif disease_label != raw_disease_label:
-                LOGGER.warning(
+                LOGGER.info(
                     f"MONDO ID '{disease_id}' label '{disease_label}' does not match annotation label '{raw_disease_label}', using current Mondo label"
                 )
             return disease_id, disease_label

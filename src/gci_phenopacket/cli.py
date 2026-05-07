@@ -90,9 +90,11 @@ def main(input_path, output_path, record, log_level, preserve_freetext, subdirs)
                 out_dir.mkdir(parents=True, exist_ok=True)
 
                 out_path = out_dir / f"{pp.id}.json"
+                if out_path.exists():
+                    logger.warning(f"Overwriting existing file: {out_path}")
                 with open(out_path, "w", encoding="utf-8") as out_f:
                     out_f.write(MessageToJson(pp, indent=2))
-                logger.info(f"Saved: {out_path.name}")
+                logger.debug(f"Saved: {out_path.name}")
         
     logger.info(
         f"Done. Written: {transformer.stats.phenopackets_created} | "
