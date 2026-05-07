@@ -187,8 +187,10 @@ class GCITransformer:
         diag = diag_list[0] if diag_list else {}
         disease_id, disease_label = self.process_diagnosis(diag)
 
-        # Phenopacket ID
-        pp_id = f"{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}_{ctx.record_id}_{ctx.gdm_id}_{ann_ctx.annotation_id}"
+        # Phenopacket ID — individual_uuid disambiguates same-label individuals in the same annotation,
+        # including labels that differ only by case (which collide on macOS's case-insensitive filesystem).
+        individual_uuid = _gci_id(individual)
+        pp_id = f"{ctx.gene_symbol}_{disease_id.replace(':', '_')}_{ann_ctx.pmid}_{label_s}_{individual_uuid}_{ctx.record_id}_{ctx.gdm_id}_{ann_ctx.annotation_id}"
 
         # MetaData
         ts = Timestamp()
