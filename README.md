@@ -94,10 +94,12 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdi
 By default, output files are written to gene-name subdirectories under the output directory, named after their Phenopacket ID:
 
 ```
-{output}/{gene_symbol}/{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{record_uuid}_{gdm_uuid}_{annotation_uuid}.json
+{output}/{gene_symbol}/{gene_symbol}_{mondo_id}_{pmid}_{label_sanitized}_{individual_uuid}_{record_uuid}_{gdm_uuid}_{annotation_uuid}.json
 ```
 
-For example: `gci_phenopackets/DSG2/DSG2_MONDO_0016587_16505173_Patient_1_edf01b6b-af07-4c70-b807-4bbec8830d8a_07090d6b-ef0a-404b-8621-ca9a4a309f4f_8a1b2c3d-ef01-2345-6789-abcdef012345.json`
+If a file already exists at the target path, it is overwritten and a `WARNING` is logged.
+
+For example: `gci_phenopackets/DSG2/DSG2_MONDO_0016587_16505173_Patient_1_abc12345-0000-0000-0000-000000000000_edf01b6b-af07-4c70-b807-4bbec8830d8a_07090d6b-ef0a-404b-8621-ca9a4a309f4f_8a1b2c3d-ef01-2345-6789-abcdef012345.json`
 
 ## Ontology Cache
 
