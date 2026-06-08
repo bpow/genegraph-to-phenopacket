@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 from google.protobuf.json_format import MessageToJson
 
+from gci_phenopacket.caid_client import CaidClient
 from gci_phenopacket.ontologies import OntologyManager
 from gci_phenopacket.transformer import GCITransformer
 
@@ -52,7 +53,14 @@ logger = logging.getLogger(__name__)
     show_default=True,
     help="Create per-gene subdirectories under the output directory",
 )
-def main(input_path, output_path, record, log_level, preserve_freetext, subdirs):
+@click.option(
+    "--caid-cache",
+    type=click.Path(path_type=Path),
+    default=lambda: Path.cwd() / "data" / "cache" / "caid_cache.json",
+    show_default="./data/cache/caid_cache.json",
+    help="Path to CAID variant info cache JSON file",
+)
+def main(input_path, output_path, record, log_level, preserve_freetext, subdirs, caid_cache):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""
     logging.basicConfig(
         level=log_level.upper(),
@@ -66,36 +74,40 @@ def main(input_path, output_path, record, log_level, preserve_freetext, subdirs)
         logging.error(f"Failed to initialize ontologies: {e}")
         raise SystemExit(1)
     
-    transformer = GCITransformer(om, preserve_freetext=preserve_freetext)
+    caid_client = CaidClient(caid_cache)
+    transformer = GCITransformer(om, preserve_freetext=preserve_freetext, caid_client=caid_client)
 
-    with open(input_path, encoding="utf-8") as f:
-        if record is not None:
-            file_iter = enumerate(itertools.islice(f, record, record + 1), start=record)
-        else:
-            file_iter = enumerate(f)
+    try:
+        with open(input_path, encoding="utf-8") as f:
+            if record is not None:
+                file_iter = enumerate(itertools.islice(f, record, record + 1), start=record)
+            else:
+                file_iter = enumerate(f)
 
-        for file_index, line in file_iter:
-            line = line.strip()
-            if not line:
-                continue
+            for file_index, line in file_iter:
+                line = line.strip()
+                if not line:
+                    continue
 
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError as e:
-                logger.warning(f"Line {file_index}: JSON parse error — {e}")
-                continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Line {file_index}: JSON parse error — {e}")
+                    continue
 
-            for pp in transformer.phenopackets_from_gci_record(rec):
-                out_dir = output_path / pp.id.split('_', 1)[0] if subdirs else output_path
-                out_dir.mkdir(parents=True, exist_ok=True)
+                for pp in transformer.phenopackets_from_gci_record(rec):
+                    out_dir = output_path / pp.id.split('_', 1)[0] if subdirs else output_path
+                    out_dir.mkdir(parents=True, exist_ok=True)
 
-                out_path = out_dir / f"{pp.id}.json"
-                if out_path.exists():
-                    logger.warning(f"Overwriting existing file: {out_path}")
-                with open(out_path, "w", encoding="utf-8") as out_f:
-                    out_f.write(MessageToJson(pp, indent=2))
-                logger.debug(f"Saved: {out_path.name}")
-        
+                    out_path = out_dir / f"{pp.id}.json"
+                    if out_path.exists():
+                        logger.warning(f"Overwriting existing file: {out_path}")
+                    with open(out_path, "w", encoding="utf-8") as out_f:
+                        out_f.write(MessageToJson(pp, indent=2))
+                    logger.debug(f"Saved: {out_path.name}")
+    finally:
+        caid_client.save()
+
     logger.info(
         f"Done. Written: {transformer.stats.phenopackets_created} | "
         f"Skipped (no HPO): {transformer.stats.skipped_no_hpo}"

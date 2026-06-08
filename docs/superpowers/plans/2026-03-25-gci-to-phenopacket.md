@@ -1101,6 +1101,22 @@ git commit -m "feat: add gci_transform pixi run target"
 
 ---
 
+## Future Work
+
+### ClinVar API enrichment for `acmg_pathogenicity_classification`
+
+**Do not implement now.**
+
+For variants that have a `clinvarVariantId` but no `carId`, the ClinVar API
+(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=clinvar&id={clinvarVariantId}`)
+returns the clinical significance (Pathogenic / Likely Pathogenic / VUS / etc.) and review status.
+
+This could populate `VariantInterpretation.acmg_pathogenicity_classification`, which is currently
+hardcoded to `NOT_PROVIDED`. A persistent JSON cache (same pattern as `data/cache/caid_cache.json`)
+should be used to avoid redundant API calls across pipeline runs.
+
+---
+
 ## Final Checklist
 
 - [ ] All unit tests pass: `pixi run python -m pytest tests/ -v`

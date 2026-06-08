@@ -9,14 +9,18 @@ src/gci_phenopacket/
   cli.py               # Click CLI entry point and JSONL processing loop
   transformer.py       # All GCI → Phenopacket field mapping logic
   ontologies.py        # OntologyManager: HP and Mondo via oaklib sqlite adapter
+  caid_client.py       # CaidClient: CAID API fetch + persistent JSON cache
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
   test_cli.py              # CLI integration tests
   test_ontologies.py       # Ontology caching and lookup tests
+  test_caid_client.py      # CAID client parse, cache, and API tests
 
 data/
   gci/                 # Input JSONL snapshots
+  cache/
+    caid_cache.json    # Persistent CAID variant info cache (committed to repo)
 ```
 
 ## Requirements
@@ -91,6 +95,12 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --preserve
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdirs
 ```
 
+**Use a custom CAID cache location (defaults to `./data/cache/caid_cache.json`):**
+
+```bash
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --caid-cache /path/to/caid_cache.json
+```
+
 By default, output files are written to gene-name subdirectories under the output directory, named after their Phenopacket ID:
 
 ```
@@ -104,6 +114,19 @@ For example: `gci_phenopackets/DSG2/DSG2_MONDO_0016587_16505173_Patient_1_abc123
 ## Ontology Cache
 
 Ontologies (HP and Mondo) are downloaded on first run via oaklib's sqlite adapter and cached automatically by oaklib. Subsequent runs reuse the cached databases. GENO zygosity terms are hardcoded in `transformer.py` and do not require a download.
+
+## CAID Variant Cache
+
+When a variant has a `carId` (ClinGen Allele ID), the pipeline calls the [ClinGen Allele Registry API](https://reg.clinicalgenome.org) to enrich the `VariationDescriptor` with:
+
+- **HGVS expressions** — GRCh38/GRCh37 genomic (`hgvs.g`), MANE Select transcript (`hgvs.c`), and protein (`hgvs.p`)
+- **VCF record** — GRCh38 chromosome, position (1-based), ref/alt alleles
+- **Cross-references** — dbSNP rsID and ClinVar allele ID
+- **Gene confirmation** — gene symbol matched against the API's gene list (replaces fragile title string-match)
+
+Responses are cached in `data/cache/caid_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run.
+
+When no `carId` is present, the pipeline falls back to HGVS and dbSNP data already present in the GCI record (`hgvsNames`, `dbSNPIds`).
 
 ## Individual Filtering
 
@@ -159,6 +182,8 @@ Resolved from the individual in priority order:
 3. If neither is present, no genomic interpretations are emitted
 
 For each variant, `carId` is preferred for the ID (`caid:CA...`), falling back to `clinvarVariantId` (`clinvar:...`).
+
+When a `carId` is present, the CAID API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor`. See [CAID Variant Cache](#caid-variant-cache).
 
 ### Zygosity
 

@@ -82,10 +82,11 @@ class GCITransformerStats:
 
 class GCITransformer:
     """Class to encapsulate transformation logic from GCI records to Phenopackets."""
-    def __init__(self, ontology_manager, preserve_freetext: bool = False):
+    def __init__(self, ontology_manager, preserve_freetext: bool = False, caid_client=None):
         self.om = ontology_manager
         self.stats = GCITransformerStats()
         self.preserve_freetext = preserve_freetext
+        self.caid_client = caid_client
 
     def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
         """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
@@ -208,7 +209,7 @@ class GCITransformer:
         # Build parts
         subject = build_subject(ann_ctx.pmid, label, individual)
         phenotypic_features = self.build_phenotypic_features(individual, ann_ctx.pmid, ann_ctx.title)
-        genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id)
+        genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id, self.caid_client)
 
         interpretation = pps2.Interpretation(
             id=pp_id,
@@ -349,8 +350,36 @@ def _make_evidence(pmid: str, article_title: str) -> pps2.Evidence:
     )
 
 
+def _build_expressions_from_gci(variant: dict) -> list:
+    """Build Expression list from GCI hgvsNames as fallback when no CAID data."""
+    expressions = []
+    hgvs_names = variant.get("hgvsNames") or {}
+    for assembly in ("GRCh38", "GRCh37"):
+        val = hgvs_names.get(assembly)
+        if val:
+            expressions.append(pps2.Expression(syntax="hgvs.g", value=val))
+    for other in hgvs_names.get("others") or []:
+        if ":c." in other:
+            expressions.append(pps2.Expression(syntax="hgvs.c", value=other))
+        elif ":p." in other or "(p." in other:
+            expressions.append(pps2.Expression(syntax="hgvs.p", value=other))
+    return expressions
+
+
+def _build_xrefs_from_gci(variant: dict) -> list:
+    """Build xrefs list from GCI variant data as fallback when no CAID data."""
+    xrefs = []
+    for rs_id in variant.get("dbSNPIds") or []:
+        xrefs.append(f"dbSNP:rs{rs_id}")
+    clinvar_id = variant.get("clinvarVariantId", "")
+    if clinvar_id:
+        xrefs.append(f"ClinVar:{clinvar_id}")
+    return xrefs
+
+
 def build_genomic_interpretations(individual: dict, pmid: str, label: str,
-                                   gene_symbol: str, hgnc_id: str) -> list:
+                                   gene_symbol: str, hgnc_id: str,
+                                   caid_client=None) -> list:
     """Build one GenomicInterpretation per variant in the individual."""
     subject_id = f"PMID_{pmid}:{label}"
     zyg = individual.get("recessiveZygosity")
@@ -383,13 +412,50 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
             var_id = ""
         var_title = variant.get("clinvarVariantTitle", "")
 
+        # Try CAID API/cache; fall back to GCI record data
+        caid_data = None
+        if car_id and caid_client is not None:
+            caid_data = caid_client.get(car_id)
+            if caid_data is None:
+                LOGGER.warning(f"No CAID data for {car_id} — falling back to GCI record data")
+
+        if caid_data is not None:
+            expressions = [
+                pps2.Expression(syntax=e["syntax"], value=e["value"])
+                for e in caid_data.get("expressions") or []
+            ]
+            xrefs = list(caid_data.get("xrefs") or [])
+            # Ensure GCI clinvarVariantId is always in xrefs even if CAID API omitted it
+            if clinvar_id and f"ClinVar:{clinvar_id}" not in xrefs:
+                xrefs.append(f"ClinVar:{clinvar_id}")
+            gene_confirmed = gene_symbol in (caid_data.get("gene_symbols") or [])
+        else:
+            expressions = _build_expressions_from_gci(variant)
+            xrefs = _build_xrefs_from_gci(variant)
+            gene_confirmed = bool(gene_symbol and gene_symbol in var_title)
+
         vd_kwargs = dict(
             id=var_id,
             label=var_title,
             molecule_context=pps2.MoleculeContext.unspecified_molecule_context,
         )
 
-        if gene_symbol and gene_symbol in var_title:
+        if expressions:
+            vd_kwargs["expressions"] = expressions
+        if xrefs:
+            vd_kwargs["xrefs"] = xrefs
+
+        if caid_data is not None and caid_data.get("vcf_record"):
+            vcf = caid_data["vcf_record"]
+            vd_kwargs["vcf_record"] = pps2.VcfRecord(
+                genome_assembly=vcf["genome_assembly"],
+                chrom=vcf["chrom"],
+                pos=vcf["pos"],
+                ref=vcf["ref"],
+                alt=vcf["alt"],
+            )
+
+        if gene_confirmed:
             vd_kwargs["gene_context"] = pps2.GeneDescriptor(
                 value_id=hgnc_id,
                 symbol=gene_symbol,

@@ -466,3 +466,174 @@ def test_build_phenopacket_provenance_group_family():
     pp = _transformer().build_phenopacket(ctx, ANN_CTX, _base_individual(), provenance_id=prov)
     ref_ids = [r.id for r in pp.meta_data.external_references]
     assert "gdm:gdm-abc-group:grp-1-family:fam-1-individual:uuid-123" in ref_ids
+
+
+# ---------------------------------------------------------------------------
+# build_genomic_interpretations — CAID enrichment path
+# ---------------------------------------------------------------------------
+
+from unittest.mock import MagicMock
+
+def _mock_caid_client(car_id: str, gene_symbols: list, expressions: list = None,
+                      vcf_record: dict = None, xrefs: list = None):
+    client = MagicMock()
+    client.get.return_value = {
+        "gene_symbols": gene_symbols,
+        "expressions": expressions or [],
+        "vcf_record": vcf_record,
+        "xrefs": xrefs or [],
+    }
+    return client
+
+
+def test_caid_gene_context_set_via_gene_symbols_list():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "SomeTitle"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=["DSG2"])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert vd.gene_context.symbol == "DSG2"
+    assert vd.gene_context.value_id == "HGNC:3049"
+
+
+def test_caid_gene_context_not_set_when_gene_not_in_list():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "SomeTitle"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=["OTHER"])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "DSG2", "HGNC:3049", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert not vd.HasField("gene_context")
+
+
+def test_caid_expressions_populated():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[], expressions=[
+        {"syntax": "hgvs.g", "value": "NC_000001.11:g.100A>T", "assembly": "GRCh38"},
+        {"syntax": "hgvs.c", "value": "NM_001.1:c.1A>T"},
+    ])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    syntaxes = {e.syntax for e in vd.expressions}
+    assert "hgvs.g" in syntaxes
+    assert "hgvs.c" in syntaxes
+
+
+def test_caid_vcf_record_populated():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[], vcf_record={
+        "genome_assembly": "GRCh38", "chrom": "1", "pos": 100, "ref": "A", "alt": "T",
+    })
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert vd.vcf_record.genome_assembly == "GRCh38"
+    assert vd.vcf_record.chrom == "1"
+    assert vd.vcf_record.pos == 100
+    assert vd.vcf_record.ref == "A"
+    assert vd.vcf_record.alt == "T"
+
+
+def test_caid_xrefs_populated():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[], xrefs=["dbSNP:rs123", "ClinVar:456"])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert "dbSNP:rs123" in vd.xrefs
+    assert "ClinVar:456" in vd.xrefs
+
+
+def test_caid_xrefs_include_gci_clinvar_id_when_absent_from_api():
+    # CAID data present but ClinVarAlleles was empty — GCI clinvarVariantId must still appear
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "99999", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[], xrefs=["dbSNP:rs111"])  # no ClinVar from API
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert "ClinVar:99999" in vd.xrefs
+
+
+def test_caid_xrefs_no_duplicate_clinvar_when_api_already_has_it():
+    # CAID API already returned the ClinVar xref — should not be duplicated
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "99999", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[], xrefs=["ClinVar:99999", "dbSNP:rs111"])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert list(vd.xrefs).count("ClinVar:99999") == 1
+
+
+def test_caid_api_failure_falls_back_to_gci_data():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{
+            "carId": "CA1",
+            "clinvarVariantId": "789",
+            "clinvarVariantTitle": "X",
+            "hgvsNames": {"GRCh38": "NC_000001.11:g.100A>T"},
+            "dbSNPIds": ["111"],
+        }],
+    }
+    client = MagicMock()
+    client.get.return_value = None  # API/cache miss
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert any("GRCh38" in e.value or "100A" in e.value for e in vd.expressions)
+
+
+# ---------------------------------------------------------------------------
+# build_genomic_interpretations — GCI fallback path (no caid_client)
+# ---------------------------------------------------------------------------
+
+from gci_phenopacket.transformer import _build_expressions_from_gci, _build_xrefs_from_gci
+
+
+def test_gci_fallback_expressions_grch38():
+    variant = {"hgvsNames": {"GRCh38": "NC_000001.11:g.100A>T", "GRCh37": "NC_000001.10:g.90A>T"}}
+    exprs = _build_expressions_from_gci(variant)
+    values = [e.value for e in exprs]
+    assert "NC_000001.11:g.100A>T" in values
+    assert "NC_000001.10:g.90A>T" in values
+
+
+def test_gci_fallback_expressions_coding():
+    variant = {"hgvsNames": {"others": ["NM_001.1:c.1A>T", "NP_001.1:p.Lys1Asn"]}}
+    exprs = _build_expressions_from_gci(variant)
+    syntaxes = {e.syntax for e in exprs}
+    assert "hgvs.c" in syntaxes
+    assert "hgvs.p" in syntaxes
+
+
+def test_gci_fallback_expressions_empty_when_no_hgvs():
+    assert _build_expressions_from_gci({}) == []
+
+
+def test_gci_fallback_xrefs_dbsnp():
+    variant = {"dbSNPIds": ["123456"], "clinvarVariantId": ""}
+    xrefs = _build_xrefs_from_gci(variant)
+    assert "dbSNP:rs123456" in xrefs
+
+
+def test_gci_fallback_xrefs_clinvar():
+    variant = {"dbSNPIds": [], "clinvarVariantId": "789"}
+    xrefs = _build_xrefs_from_gci(variant)
+    assert "ClinVar:789" in xrefs
+
+
+def test_gci_fallback_xrefs_empty_when_no_ids():
+    assert _build_xrefs_from_gci({}) == []
