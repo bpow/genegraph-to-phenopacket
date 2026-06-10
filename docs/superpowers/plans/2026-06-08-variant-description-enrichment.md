@@ -10,7 +10,7 @@
 
 The existing pipeline populated `VariationDescriptor` with only four fields: `id` (caid:/clinvar: prefix), `label` (clinvarVariantTitle), `gene_context` (via fragile string-match on title), and `allelic_state` (from recessiveZygosity). Many richer fields were left empty.
 
-The ClinGen Allele Registry API (`https://reg.clinicalgenome.org/allele/{carId}`) returns:
+The ClinGen Allele Registry API (`https://reg.genome.network`) returns:
 - Genomic HGVS (GRCh38, GRCh37) and transcript HGVS (MANE Select preferred)
 - GRCh38 VCF-style coordinates (chromosome, position, ref, alt)
 - Cross-references: dbSNP rsID, ClinVar allele ID
@@ -27,9 +27,11 @@ The ClinGen Allele Registry API (`https://reg.clinicalgenome.org/allele/{carId}`
 - Committing the cache means collaborators and CI skip API calls for already-seen variants
 
 ### Three-layer lookup per variant
-1. Has `carId` **and** cache hit → use cached data
-2. Has `carId` **and** cache miss → call API, store in cache, use data
-3. No `carId` **or** API failure → fall back to GCI record data (`hgvsNames`, `dbSNPIds`)
+1. Has `carId` → `GET reg.genome.network/allele/{carId}` (single object)
+2. Has `clinvarVariantId` (no carId) → `GET reg.genome.network/alleles?ClinVar.variationId={id}` (list, take first)
+3. Neither, or API failure → fall back to GCI record data (`hgvsNames`, `dbSNPIds`)
+
+Cache keys: `carId` values stored as-is (e.g. `"CA321211"`); ClinVar lookups stored under `"clinvar:{id}"` prefix to avoid key collision.
 
 ### Gene context confirmation
 - Old approach: `if gene_symbol in clinvarVariantTitle` — fragile string match
@@ -63,16 +65,16 @@ The ClinGen Allele Registry API (`https://reg.clinicalgenome.org/allele/{carId}`
 
 ## What Was NOT Implemented (Future Work)
 
-### ClinVar API for `acmg_pathogenicity_classification`
+### `acmg_pathogenicity_classification` enrichment
 
-For variants with a `clinvarVariantId` but no `carId`, the ClinVar E-utilities API
-(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=clinvar&id={clinvarVariantId}`)
-returns the clinical significance (Pathogenic / Likely Pathogenic / VUS / Benign / etc.) and
-submitter review status.
-
-This could populate `VariantInterpretation.acmg_pathogenicity_classification`, which is currently
-hardcoded to `NOT_PROVIDED`. A persistent JSON cache (same pattern as `data/cache/caid_cache.json`)
+`VariantInterpretation.acmg_pathogenicity_classification` is currently hardcoded to `NOT_PROVIDED`.
+The ClinVar E-utilities API returns clinical significance (Pathogenic / Likely Pathogenic / VUS etc.)
+and could populate this field. A persistent JSON cache (same pattern as `data/cache/caid_cache.json`)
 should be used. **Do not implement until the CAID enrichment is validated in production.**
+
+Note: the ClinVar variant ID lookup via the CAID registry (`reg.genome.network/alleles?ClinVar.variationId={id}`)
+was implemented as part of this branch — the separate ClinVar E-utilities API is only needed for
+the pathogenicity classification field, which lives on a different part of the phenopacket schema.
 
 ---
 
@@ -80,5 +82,5 @@ should be used. **Do not implement until the CAID enrichment is validated in pro
 
 All 106 tests pass. New tests added in this branch:
 
-- `tests/test_caid_client.py` — 17 tests
-- `tests/test_gci_transformer.py` — 12 new tests (CAID path + GCI fallback helpers)
+- `tests/test_caid_client.py` — 21 tests (includes ClinVar lookup path)
+- `tests/test_gci_transformer.py` — 16 new tests (CAID path, ClinVar path, GCI fallback helpers)

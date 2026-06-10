@@ -117,16 +117,20 @@ Ontologies (HP and Mondo) are downloaded on first run via oaklib's sqlite adapte
 
 ## CAID Variant Cache
 
-When a variant has a `carId` (ClinGen Allele ID), the pipeline calls the [ClinGen Allele Registry API](https://reg.clinicalgenome.org) to enrich the `VariationDescriptor` with:
+The pipeline calls the [ClinGen Allele Registry](https://reg.genome.network) to enrich the `VariationDescriptor` with:
 
 - **HGVS expressions** — GRCh38/GRCh37 genomic (`hgvs.g`), MANE Select transcript (`hgvs.c`), and protein (`hgvs.p`)
 - **VCF record** — GRCh38 chromosome, position (1-based), ref/alt alleles
 - **Cross-references** — dbSNP rsID and ClinVar allele ID
 - **Gene confirmation** — gene symbol matched against the API's gene list (replaces fragile title string-match)
 
-Responses are cached in `data/cache/caid_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run.
+The lookup is attempted in three tiers per variant:
 
-When no `carId` is present, the pipeline falls back to HGVS and dbSNP data already present in the GCI record (`hgvsNames`, `dbSNPIds`).
+1. **Has `carId`** → `GET reg.genome.network/allele/{carId}`
+2. **Has `clinvarVariantId`** (no carId) → `GET reg.genome.network/alleles?ClinVar.variationId={id}`
+3. **Neither** → falls back to HGVS and dbSNP data already present in the GCI record (`hgvsNames`, `dbSNPIds`)
+
+Responses are cached in `data/cache/caid_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run (via `try/finally`, so entries are preserved even if the run is interrupted).
 
 ## Individual Filtering
 
@@ -183,7 +187,7 @@ Resolved from the individual in priority order:
 
 For each variant, `carId` is preferred for the ID (`caid:CA...`), falling back to `clinvarVariantId` (`clinvar:...`).
 
-When a `carId` is present, the CAID API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor`. See [CAID Variant Cache](#caid-variant-cache).
+The CAID API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor` — first via `carId`, then via `clinvarVariantId` if no `carId` is present. See [CAID Variant Cache](#caid-variant-cache).
 
 ### Zygosity
 

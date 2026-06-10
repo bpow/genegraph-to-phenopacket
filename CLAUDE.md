@@ -90,10 +90,8 @@ pixi run test
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `GCIIndividualContext` (fields: `individual`, `individual_id`, `group_id`, `family_id`) for all nesting levels
-- CAID API (`https://reg.clinicalgenome.org/allele/{carId}`) is called per variant to enrich `VariationDescriptor` with HGVS expressions, VCF record (GRCh38), xrefs (dbSNP/ClinVar), and gene confirmation; responses cached in `data/cache/caid_cache.json`
-- Gene context is confirmed by matching `gene_symbol` against the gene list returned by the CAID API (replacing the old fragile string-match on `clinvarVariantTitle`); falls back to string-match when no CAID data
-- When no `carId` is present, `hgvsNames` and `dbSNPIds` from the GCI record are used as fallback for expressions and xrefs
-- Future: ClinVar API can populate `acmg_pathogenicity_classification` for records with `clinvarVariantId` — see plan doc
+- CAID API (`https://reg.genome.network`) enriches `VariationDescriptor` with HGVS expressions, VCF record (GRCh38), xrefs, and gene confirmation; three-tier lookup: `carId` → `/allele/{carId}`, then `clinvarVariantId` → `/alleles?ClinVar.variationId={id}`, then GCI record fallback (`hgvsNames`, `dbSNPIds`); responses cached in `data/cache/caid_cache.json`
+- Gene context confirmed by matching `gene_symbol` against the gene list returned by the CAID API (applies to both carId and clinvarVariantId lookup paths); falls back to string-match on `clinvarVariantTitle` when no API data available
 - `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
 - Ontologies (HP, Mondo only) are loaded via oaklib's sqlite adapter (`sqlite:obo:hp`, `sqlite:obo:mondo`); oaklib manages download and caching automatically
 - `OntologyManager.mondo_label(disease_id)` returns the Mondo label string or `None` if not found
