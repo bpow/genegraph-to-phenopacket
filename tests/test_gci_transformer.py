@@ -595,6 +595,27 @@ def test_clinvar_id_used_when_no_car_id():
     client.get.assert_not_called()
     vd = interps[0].variant_interpretation.variation_descriptor
     assert any("1A>T" in e.value for e in vd.expressions)
+    # Gene confirmation check applies to ClinVar path too — ETFA in gene_symbols → context set
+    assert vd.gene_context.symbol == "ETFA"
+    assert vd.gene_context.value_id == "HGNC:1"
+
+
+def test_clinvar_id_gene_context_not_set_when_gene_mismatch():
+    # ClinVar API returns a different gene — gene_context must NOT be attached
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "", "clinvarVariantId": "2597", "clinvarVariantTitle": "X"}],
+    }
+    client = MagicMock()
+    client.get_by_clinvar_id.return_value = {
+        "gene_symbols": ["OTHER_GENE"],
+        "expressions": [],
+        "vcf_record": None,
+        "xrefs": [],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "ETFA", "HGNC:1", caid_client=client)
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert not vd.HasField("gene_context")
 
 
 def test_clinvar_id_not_called_when_car_id_present():
