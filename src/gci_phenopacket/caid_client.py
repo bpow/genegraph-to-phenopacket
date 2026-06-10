@@ -5,7 +5,7 @@ import urllib.error
 from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
-CAID_API_BASE = "https://reg.clinicalgenome.org/allele"
+CAID_API_BASE = "https://reg.genome.network"
 
 
 class CaidClient:
@@ -23,12 +23,22 @@ class CaidClient:
                 LOGGER.warning(f"Could not load CAID cache from {cache_path}: {e}")
 
     def get(self, car_id: str) -> dict | None:
-        """Return enriched variant info for car_id. Uses cache first, then API."""
+        """Return enriched variant info by CAID. Uses cache first, then API."""
         if car_id in self._cache:
             return self._cache[car_id]
         data = self._fetch(car_id)
         if data is not None:
             self._cache[car_id] = data
+        return data
+
+    def get_by_clinvar_id(self, clinvar_id: str) -> dict | None:
+        """Return enriched variant info by ClinVar variation ID. Uses cache first, then API."""
+        cache_key = f"clinvar:{clinvar_id}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        data = self._fetch_by_clinvar_id(clinvar_id)
+        if data is not None:
+            self._cache[cache_key] = data
         return data
 
     def save(self):
@@ -39,7 +49,7 @@ class CaidClient:
         LOGGER.info(f"Saved CAID cache: {len(self._cache)} entries to {self._cache_path}")
 
     def _fetch(self, car_id: str) -> dict | None:
-        url = f"{CAID_API_BASE}/{car_id}"
+        url = f"{CAID_API_BASE}/allele/{car_id}"
         try:
             with urllib.request.urlopen(url, timeout=10) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
@@ -49,6 +59,23 @@ class CaidClient:
             LOGGER.warning(f"CAID API HTTP {e.code} for {car_id} — skipping")
         except Exception as e:
             LOGGER.warning(f"CAID API error for {car_id}: {e} — skipping")
+        return None
+
+    def _fetch_by_clinvar_id(self, clinvar_id: str) -> dict | None:
+        url = f"{CAID_API_BASE}/alleles?ClinVar.variationId={clinvar_id}"
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            if not raw:
+                LOGGER.debug(f"CAID API: no allele found for ClinVar:{clinvar_id}")
+                return None
+            caid = raw[0].get("@id", "").split("/")[-1]
+            LOGGER.debug(f"CAID API: ClinVar:{clinvar_id} -> {caid}")
+            return self._parse(raw[0])
+        except urllib.error.HTTPError as e:
+            LOGGER.warning(f"CAID API HTTP {e.code} for ClinVar:{clinvar_id} — skipping")
+        except Exception as e:
+            LOGGER.warning(f"CAID API error for ClinVar:{clinvar_id}: {e} — skipping")
         return None
 
     def _parse(self, data: dict) -> dict:

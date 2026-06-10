@@ -150,6 +150,43 @@ def test_parse_empty_response(tmp_path):
     assert result["gene_symbols"] == []
 
 
+def test_get_by_clinvar_id_cache_hit(tmp_path):
+    cache_file = tmp_path / "caid_cache.json"
+    cached = {"clinvar:2597": {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": ["ETFA"]}}
+    cache_file.write_text(json.dumps(cached))
+    client = CaidClient(cache_file)
+    with patch.object(client, "_fetch_by_clinvar_id") as mock_fetch:
+        result = client.get_by_clinvar_id("2597")
+        mock_fetch.assert_not_called()
+    assert result["gene_symbols"] == ["ETFA"]
+
+
+def test_get_by_clinvar_id_cache_miss_calls_api(tmp_path):
+    client = _client_with_no_cache(tmp_path)
+    mock_result = {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": ["ETFA"]}
+    with patch.object(client, "_fetch_by_clinvar_id", return_value=mock_result):
+        result = client.get_by_clinvar_id("2597")
+    assert result == mock_result
+    assert "clinvar:2597" in client._cache
+
+
+def test_get_by_clinvar_id_uses_prefixed_cache_key(tmp_path):
+    client = _client_with_no_cache(tmp_path)
+    mock_result = {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": []}
+    with patch.object(client, "_fetch_by_clinvar_id", return_value=mock_result):
+        client.get_by_clinvar_id("999")
+    assert "clinvar:999" in client._cache
+    assert "999" not in client._cache  # no collision with CAID keys
+
+
+def test_get_by_clinvar_id_empty_response_returns_none(tmp_path):
+    client = _client_with_no_cache(tmp_path)
+    with patch.object(client, "_fetch_by_clinvar_id", return_value=None):
+        result = client.get_by_clinvar_id("9999")
+    assert result is None
+    assert "clinvar:9999" not in client._cache
+
+
 def test_cache_hit_skips_api(tmp_path):
     cache_file = tmp_path / "caid_cache.json"
     cached = {"CA321211": {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": ["NDUFS8"]}}

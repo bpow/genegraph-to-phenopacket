@@ -578,6 +578,36 @@ def test_caid_xrefs_no_duplicate_clinvar_when_api_already_has_it():
     assert list(vd.xrefs).count("ClinVar:99999") == 1
 
 
+def test_clinvar_id_used_when_no_car_id():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "", "clinvarVariantId": "2597", "clinvarVariantTitle": "X"}],
+    }
+    client = MagicMock()
+    client.get_by_clinvar_id.return_value = {
+        "gene_symbols": ["ETFA"],
+        "expressions": [{"syntax": "hgvs.g", "value": "NC_000015.10:g.1A>T", "assembly": "GRCh38"}],
+        "vcf_record": None,
+        "xrefs": ["dbSNP:rs1"],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "ETFA", "HGNC:1", caid_client=client)
+    client.get_by_clinvar_id.assert_called_once_with("2597")
+    client.get.assert_not_called()
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert any("1A>T" in e.value for e in vd.expressions)
+
+
+def test_clinvar_id_not_called_when_car_id_present():
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA1", "clinvarVariantId": "2597", "clinvarVariantTitle": "X"}],
+    }
+    client = _mock_caid_client("CA1", gene_symbols=[])
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
+    client.get.assert_called_once_with("CA1")
+    client.get_by_clinvar_id.assert_not_called()
+
+
 def test_caid_api_failure_falls_back_to_gci_data():
     ind = {
         "recessiveZygosity": None,
