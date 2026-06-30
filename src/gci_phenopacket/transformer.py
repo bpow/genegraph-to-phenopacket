@@ -471,6 +471,10 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
 
         vd = pps2.VariationDescriptor(**vd_kwargs)
         vi = pps2.VariantInterpretation(
+            # Intentionally always NOT_PROVIDED: the Phenopacket v2 spec cannot record the
+            # provenance of a pathogenicity classification, so populating this from ClinVar
+            # would misrepresent another group's assertion as our own. Do not change until
+            # the spec supports provenance metadata. See README / CLAUDE.md.
             acmg_pathogenicity_classification=pps2.AcmgPathogenicityClassification.NOT_PROVIDED,
             therapeutic_actionability=pps2.TherapeuticActionability.UNKNOWN_ACTIONABILITY,
             variation_descriptor=vd,

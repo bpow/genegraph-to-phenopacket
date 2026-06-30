@@ -189,6 +189,10 @@ For each variant, `carId` is preferred for the ID (`caid:CA...`), falling back t
 
 The Allele Registry API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor` — first via `carId`, then via `clinvarVariantId` if no `carId` is present. See [Allele Registry Variant Cache](#allele-registry-variant-cache).
 
+### Pathogenicity Classification
+
+`VariantInterpretation.acmg_pathogenicity_classification` is always set to `NOT_PROVIDED`, and this is intentional and must not be changed. Although ClinVar exposes reports of clinical significance for many variants, the current Phenopacket v2 spec provides no way to record the *provenance* of a pathogenicity classification. A classification reported to ClinVar was asserted by some other group — populating this field would make the phenopacket appear to assert pathogenicity ourselves, which would be incorrect and misleading. Leave it `NOT_PROVIDED` until the Phenopacket spec supports provenance metadata for this field.
+
 ### Zygosity
 
 Read from `individual.recessiveZygosity`. Mapped to GENO terms:

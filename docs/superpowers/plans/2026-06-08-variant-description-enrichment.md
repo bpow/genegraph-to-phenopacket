@@ -65,18 +65,26 @@ Cache keys: `carId` values stored as-is (e.g. `"CA321211"`); ClinVar lookups sto
 
 ---
 
-## What Was NOT Implemented (Future Work)
+## What Was Deliberately NOT Implemented
 
-### `acmg_pathogenicity_classification` enrichment
+### `acmg_pathogenicity_classification` enrichment — DO NOT IMPLEMENT
 
-`VariantInterpretation.acmg_pathogenicity_classification` is currently hardcoded to `NOT_PROVIDED`.
-The ClinVar E-utilities API returns clinical significance (Pathogenic / Likely Pathogenic / VUS etc.)
-and could populate this field. A persistent JSON cache (same pattern as `data/cache/caid_cache.json`)
-should be used. **Do not implement until the CAID enrichment is validated in production.**
+`VariantInterpretation.acmg_pathogenicity_classification` is hardcoded to `NOT_PROVIDED` and
+**must stay that way.** The ClinVar E-utilities API returns clinical significance (Pathogenic /
+Likely Pathogenic / VUS etc.) and could technically populate this field, but we will not do so.
+
+**Why:** the current Phenopacket v2 spec has no way to record the *provenance* of a pathogenicity
+classification. A classification reported to ClinVar was asserted by some other group, not by us.
+Populating this field would cause the phenopacket to be misread as our own assertion of
+pathogenicity, which would be incorrect and potentially misleading. Leaving it `NOT_PROVIDED` is
+the only honest representation until the Phenopacket spec adds provenance metadata for this field.
+
+Revisit only if/when the Phenopacket spec gains a way to attribute a pathogenicity classification
+to its original asserter.
 
 Note: the ClinVar variant ID lookup via the CAID registry (`reg.genome.network/alleles?ClinVar.variationId={id}`)
-was implemented as part of this branch — the separate ClinVar E-utilities API is only needed for
-the pathogenicity classification field, which lives on a different part of the phenopacket schema.
+was implemented as part of this branch — that is a separate concern (variant identity enrichment) and
+does not assert pathogenicity.
 
 ---
 
