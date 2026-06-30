@@ -412,16 +412,17 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
             var_id = ""
         var_title = variant.get("clinvarVariantTitle", "")
 
-        # Try CAID API/cache; fall back to GCI record data
+        # Three-tier lookup: carId → clinvarVariantId → GCI record data
         caid_data = None
-        if car_id and caid_client is not None:
-            caid_data = caid_client.get(car_id)
-            if caid_data is None:
-                LOGGER.warning(f"No CAID data for {car_id} — falling back to GCI record data")
-        elif clinvar_id and caid_client is not None:
-            caid_data = caid_client.get_by_clinvar_id(clinvar_id)
-            if caid_data is None:
-                LOGGER.warning(f"No CAID data for ClinVar:{clinvar_id} — falling back to GCI record data")
+        if caid_client is not None:
+            if car_id:
+                caid_data = caid_client.get(car_id)
+                if caid_data is None:
+                    LOGGER.warning(f"No CAID data for {car_id} — trying ClinVar lookup")
+            if caid_data is None and clinvar_id:
+                caid_data = caid_client.get_by_clinvar_id(clinvar_id)
+            if caid_data is None and (car_id or clinvar_id):
+                LOGGER.warning("No CAID data — falling back to GCI record data")
 
         if caid_data is not None:
             expressions = [

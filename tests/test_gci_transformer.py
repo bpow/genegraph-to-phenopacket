@@ -600,6 +600,28 @@ def test_clinvar_id_used_when_no_car_id():
     assert vd.gene_context.value_id == "HGNC:1"
 
 
+def test_clinvar_lookup_used_when_car_id_lookup_fails():
+    # carId present but its lookup returns None — must fall back to ClinVar lookup, not GCI data
+    ind = {
+        "recessiveZygosity": None,
+        "variants": [{"carId": "CA404", "clinvarVariantId": "2597", "clinvarVariantTitle": "X"}],
+    }
+    client = MagicMock()
+    client.get.return_value = None
+    client.get_by_clinvar_id.return_value = {
+        "gene_symbols": ["ETFA"],
+        "expressions": [{"syntax": "hgvs.g", "value": "NC_000015.10:g.1A>T", "assembly": "GRCh38"}],
+        "vcf_record": None,
+        "xrefs": ["dbSNP:rs1"],
+    }
+    interps = build_genomic_interpretations(ind, "pmid1", "P1", "ETFA", "HGNC:1", caid_client=client)
+    client.get.assert_called_once_with("CA404")
+    client.get_by_clinvar_id.assert_called_once_with("2597")
+    vd = interps[0].variant_interpretation.variation_descriptor
+    assert any("1A>T" in e.value for e in vd.expressions)
+    assert vd.gene_context.symbol == "ETFA"
+
+
 def test_clinvar_id_gene_context_not_set_when_gene_mismatch():
     # ClinVar API returns a different gene — gene_context must NOT be attached
     ind = {
@@ -641,7 +663,8 @@ def test_caid_api_failure_falls_back_to_gci_data():
         }],
     }
     client = MagicMock()
-    client.get.return_value = None  # API/cache miss
+    client.get.return_value = None  # carId API/cache miss
+    client.get_by_clinvar_id.return_value = None  # ClinVar API/cache miss
     interps = build_genomic_interpretations(ind, "pmid1", "P1", "G", "HGNC:1", caid_client=client)
     vd = interps[0].variant_interpretation.variation_descriptor
     assert any("GRCh38" in e.value or "100A" in e.value for e in vd.expressions)
