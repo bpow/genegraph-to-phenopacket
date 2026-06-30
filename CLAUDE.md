@@ -90,7 +90,7 @@ pixi run test
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `GCIIndividualContext` (fields: `individual`, `individual_id`, `group_id`, `family_id`) for all nesting levels
-- CAID API (`https://reg.genome.network`) enriches `VariationDescriptor` with HGVS expressions, VCF record (GRCh38), xrefs, and gene confirmation; three-tier lookup: `carId` → `/allele/{carId}`, then `clinvarVariantId` → `/alleles?ClinVar.variationId={id}`, then GCI record fallback (`hgvsNames`, `dbSNPIds`); responses cached in `data/cache/caid_cache.json`
+- CAID API (`https://reg.genome.network`) enriches `VariationDescriptor` with HGVS expressions, VCF record (GRCh38, from the gnomAD v4 id), xrefs, and gene confirmation; three-tier lookup: `carId` → `/allele/{carId}`, then `clinvarVariantId` → `/alleles?ClinVar.variationId={id}`, then GCI record fallback (`hgvsNames`, `dbSNPIds`); responses cached in `data/cache/caid_cache.json`
 - Gene context confirmed by matching `gene_symbol` against the gene list returned by the CAID API (applies to both carId and clinvarVariantId lookup paths); falls back to string-match on `clinvarVariantTitle` when no API data available
 - `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
 - Ontologies (HP, Mondo only) are loaded via oaklib's sqlite adapter (`sqlite:obo:hp`, `sqlite:obo:mondo`); oaklib manages download and caching automatically

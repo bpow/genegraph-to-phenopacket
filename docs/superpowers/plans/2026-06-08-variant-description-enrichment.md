@@ -12,7 +12,7 @@ The existing pipeline populated `VariationDescriptor` with only four fields: `id
 
 The ClinGen Allele Registry API (`https://reg.genome.network`) returns:
 - Genomic HGVS (GRCh38, GRCh37) and transcript HGVS (MANE Select preferred)
-- GRCh38 VCF-style coordinates (chromosome, position, ref, alt)
+- GRCh38 VCF coordinates via the gnomAD v4 id (chromosome, position, ref, alt)
 - Cross-references: dbSNP rsID, ClinVar allele ID
 - Gene symbol list — used to replace the old `gene_symbol in clinvarVariantTitle` heuristic
 
@@ -43,8 +43,10 @@ Cache keys: `carId` values stored as-is (e.g. `"CA321211"`); ClinVar lookups sto
 - Transcript: MANE Select transcript(s) preferred; falls back to first transcript if no MANE
 - Protein: from the MANE Select (or first) transcript's `proteinEffect.hgvs`
 
-### VCF position
-- API uses 0-based interbase coordinates; VCF is 1-based → `pos = start + 1`
+### VCF record
+- Built from `externalRecords.gnomAD_4[0].id` (format `chrom-pos-ref-alt`, always GRCh38)
+- gnomAD ids are left-aligned/normalized with an anchor base, so `ref`/`alt` are never empty — unlike the registry's interbase `coordinates`, which yield empty alleles for indels (invalid VCF)
+- No gnomAD v4 record → no VCF record emitted
 
 ---
 

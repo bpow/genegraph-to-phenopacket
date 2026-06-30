@@ -41,6 +41,7 @@ MOCK_API_RESPONSE = {
     "externalRecords": {
         "dbSNP": [{"rs": 369602258}],
         "ClinVarAlleles": [{"alleleId": 211565}],
+        "gnomAD_4": [{"id": "11-68032291-C-T"}],
     },
 }
 
@@ -61,11 +62,36 @@ def test_parse_vcf_record_grch38(tmp_path):
     }
 
 
-def test_parse_vcf_record_position_is_one_based(tmp_path):
-    # API start is 0-based interbase; VCF pos must be 1-based
+def test_parse_vcf_record_from_gnomad_indel(tmp_path):
+    # gnomAD ids are normalized with an anchor base — ref/alt are never empty for indels
     client = _client_with_no_cache(tmp_path)
-    result = client._parse(MOCK_API_RESPONSE)
-    assert result["vcf_record"]["pos"] == 68032291  # start(68032290) + 1
+    response = {"externalRecords": {"gnomAD_4": [{"id": "1-12345-CAG-C"}]}}
+    result = client._parse(response)
+    assert result["vcf_record"] == {
+        "genome_assembly": "GRCh38",
+        "chrom": "1",
+        "pos": 12345,
+        "ref": "CAG",
+        "alt": "C",
+    }
+
+
+def test_parse_vcf_record_none_without_gnomad(tmp_path):
+    # No gnomAD_4 record → no VCF record, even when genomicAlleles/coordinates exist
+    client = _client_with_no_cache(tmp_path)
+    response = {
+        "genomicAlleles": MOCK_API_RESPONSE["genomicAlleles"],
+        "externalRecords": {"dbSNP": [{"rs": 1}]},
+    }
+    result = client._parse(response)
+    assert result["vcf_record"] is None
+
+
+def test_parse_vcf_record_malformed_gnomad_id(tmp_path):
+    client = _client_with_no_cache(tmp_path)
+    response = {"externalRecords": {"gnomAD_4": [{"id": "not-valid"}]}}
+    result = client._parse(response)
+    assert result["vcf_record"] is None
 
 
 def test_parse_genomic_expressions_grch38_and_grch37_only(tmp_path):

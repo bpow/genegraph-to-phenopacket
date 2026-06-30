@@ -84,26 +84,13 @@ class CaidClient:
         xrefs = []
         gene_symbols = []
 
-        # Genomic alleles → GRCh38/GRCh37 HGVS expressions; GRCh38 VCF record
+        # Genomic alleles → GRCh38/GRCh37 HGVS expressions
         for ga in data.get("genomicAlleles") or []:
             ref_genome = ga.get("referenceGenome", "")
             if ref_genome not in ("GRCh38", "GRCh37"):
                 continue
-            chrom = ga.get("chromosome", "")
             for hgvs_str in ga.get("hgvs") or []:
                 expressions.append({"syntax": "hgvs.g", "value": hgvs_str, "assembly": ref_genome})
-            if ref_genome == "GRCh38":
-                coords = ga.get("coordinates") or []
-                if coords:
-                    c = coords[0]
-                    vcf_record = {
-                        "genome_assembly": "GRCh38",
-                        "chrom": chrom,
-                        # API uses 0-based interbase coordinates; VCF is 1-based
-                        "pos": c["start"] + 1,
-                        "ref": c.get("referenceAllele", ""),
-                        "alt": c.get("allele", ""),
-                    }
 
         # Transcript alleles → gene symbols; MANE Select (or first) hgvs.c/hgvs.p
         all_tas = data.get("transcriptAlleles") or []
@@ -121,8 +108,24 @@ class CaidClient:
             if pe.get("hgvs"):
                 expressions.append({"syntax": "hgvs.p", "value": pe["hgvs"]})
 
-        # External records → xrefs
+        # External records → xrefs; gnomAD v4 id → GRCh38 VCF record (always normalized,
+        # so valid for indels — unlike interbase coordinates which yield empty ref/alt)
         ext = data.get("externalRecords") or {}
+        gnomad = ext.get("gnomAD_4") or []
+        if gnomad:
+            gnomad_id = gnomad[0].get("id", "")
+            parts = gnomad_id.split("-")
+            if len(parts) == 4:
+                chrom, pos, ref, alt = parts
+                vcf_record = {
+                    "genome_assembly": "GRCh38",
+                    "chrom": chrom,
+                    "pos": int(pos),
+                    "ref": ref,
+                    "alt": alt,
+                }
+            else:
+                LOGGER.warning(f"Unexpected gnomAD_4 id format: {gnomad_id!r} — skipping VCF record")
         for dbsnp in ext.get("dbSNP") or []:
             rs = dbsnp.get("rs")
             if rs:

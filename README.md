@@ -120,7 +120,7 @@ Ontologies (HP and Mondo) are downloaded on first run via oaklib's sqlite adapte
 The pipeline calls the [ClinGen Allele Registry](https://reg.genome.network) to enrich the `VariationDescriptor` with:
 
 - **HGVS expressions** — GRCh38/GRCh37 genomic (`hgvs.g`), MANE Select transcript (`hgvs.c`), and protein (`hgvs.p`)
-- **VCF record** — GRCh38 chromosome, position (1-based), ref/alt alleles
+- **VCF record** — GRCh38 chromosome, position, ref/alt alleles (from the gnomAD v4 id)
 - **Cross-references** — dbSNP rsID and ClinVar allele ID
 - **Gene confirmation** — gene symbol matched against the API's gene list (replaces fragile title string-match)
 
