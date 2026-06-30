@@ -9,7 +9,7 @@ src/gci_phenopacket/
   cli.py               # Click CLI entry point and JSONL processing loop
   transformer.py       # All GCI → Phenopacket field mapping logic
   ontologies.py        # OntologyManager: HP and Mondo via oaklib sqlite adapter
-  allele_registry_client.py  # AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent JSON cache
+  allele_registry_client.py  # AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent gzip-compressed JSON cache
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
@@ -20,7 +20,7 @@ tests/
 data/
   gci/                 # Input JSONL snapshots
   cache/
-    allele_registry_cache.json    # Persistent allele registry variant info cache (committed to repo)
+    allele_registry_cache.json.gz # Persistent allele registry variant info cache (gzip-compressed JSON)
 ```
 
 ## Requirements
@@ -95,10 +95,10 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --preserve
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdirs
 ```
 
-**Use a custom allele registry cache location (defaults to `./data/cache/allele_registry_cache.json`):**
+**Use a custom allele registry cache location (defaults to `./data/cache/allele_registry_cache.json.gz`):**
 
 ```bash
-pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --allele-registry-cache /path/to/allele_registry_cache.json
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --allele-registry-cache /path/to/allele_registry_cache.json.gz
 ```
 
 By default, output files are written to gene-name subdirectories under the output directory, named after their Phenopacket ID:
@@ -130,7 +130,7 @@ The lookup is attempted in three tiers per variant:
 2. **Has `clinvarVariantId`** (no carId) → `GET reg.genome.network/alleles?ClinVar.variationId={id}`
 3. **Neither** → falls back to HGVS and dbSNP data already present in the GCI record (`hgvsNames`, `dbSNPIds`)
 
-Responses are cached in `data/cache/allele_registry_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run (via `try/finally`, so entries are preserved even if the run is interrupted).
+Responses are cached in `data/cache/allele_registry_cache.json.gz` (gzip-compressed JSON). The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run (via `try/finally`, so entries are preserved even if the run is interrupted).
 
 ## Individual Filtering
 
