@@ -1,3 +1,4 @@
+import gzip
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -47,7 +48,7 @@ MOCK_API_RESPONSE = {
 
 
 def _client_with_no_cache(tmp_path) -> AlleleRegistryClient:
-    return AlleleRegistryClient(tmp_path / "allele_registry_cache.json")
+    return AlleleRegistryClient(tmp_path / "allele_registry_cache.json.gz")
 
 
 def test_parse_vcf_record_grch38(tmp_path):
@@ -177,9 +178,10 @@ def test_parse_empty_response(tmp_path):
 
 
 def test_get_by_clinvar_id_cache_hit(tmp_path):
-    cache_file = tmp_path / "allele_registry_cache.json"
+    cache_file = tmp_path / "allele_registry_cache.json.gz"
     cached = {"clinvar:2597": {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": ["ETFA"]}}
-    cache_file.write_text(json.dumps(cached))
+    with gzip.open(cache_file, "wt", encoding="utf-8") as f:
+        json.dump(cached, f)
     client = AlleleRegistryClient(cache_file)
     with patch.object(client, "_fetch_by_clinvar_id") as mock_fetch:
         result = client.get_by_clinvar_id("2597")
@@ -214,9 +216,10 @@ def test_get_by_clinvar_id_empty_response_returns_none(tmp_path):
 
 
 def test_cache_hit_skips_api(tmp_path):
-    cache_file = tmp_path / "allele_registry_cache.json"
+    cache_file = tmp_path / "allele_registry_cache.json.gz"
     cached = {"CA321211": {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": ["NDUFS8"]}}
-    cache_file.write_text(json.dumps(cached))
+    with gzip.open(cache_file, "wt", encoding="utf-8") as f:
+        json.dump(cached, f)
     client = AlleleRegistryClient(cache_file)
     with patch.object(client, "_fetch") as mock_fetch:
         result = client.get("CA321211")
@@ -242,7 +245,7 @@ def test_api_error_returns_none(tmp_path):
 
 
 def test_save_and_reload(tmp_path):
-    cache_file = tmp_path / "allele_registry_cache.json"
+    cache_file = tmp_path / "allele_registry_cache.json.gz"
     client = AlleleRegistryClient(cache_file)
     client._cache["CA1"] = {"expressions": [], "vcf_record": None, "xrefs": ["dbSNP:rs1"], "gene_symbols": ["G1"]}
     client.save()
@@ -252,7 +255,7 @@ def test_save_and_reload(tmp_path):
 
 
 def test_save_creates_parent_dirs(tmp_path):
-    cache_file = tmp_path / "nested" / "dir" / "cache.json"
+    cache_file = tmp_path / "nested" / "dir" / "cache.json.gz"
     client = AlleleRegistryClient(cache_file)
     client._cache["CA1"] = {"expressions": [], "vcf_record": None, "xrefs": [], "gene_symbols": []}
     client.save()

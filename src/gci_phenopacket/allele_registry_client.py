@@ -1,3 +1,4 @@
+import gzip
 import json
 import logging
 import urllib.request
@@ -9,14 +10,14 @@ ALLELE_REGISTRY_API_BASE = "https://reg.genome.network"
 
 
 class AlleleRegistryClient:
-    """Fetches variant info from the ClinGen Allele Registry with a persistent JSON cache."""
+    """Fetches variant info from the ClinGen Allele Registry with a persistent gzip-compressed JSON cache."""
 
     def __init__(self, cache_path: Path):
         self._cache_path = cache_path
         self._cache: dict = {}
         if cache_path.exists():
             try:
-                with open(cache_path, encoding="utf-8") as f:
+                with gzip.open(cache_path, "rt", encoding="utf-8") as f:
                     self._cache = json.load(f)
                 LOGGER.info(f"Loaded allele registry cache: {len(self._cache)} entries from {cache_path}")
             except Exception as e:
@@ -44,7 +45,7 @@ class AlleleRegistryClient:
     def save(self):
         """Write in-memory cache to disk."""
         self._cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._cache_path, "w", encoding="utf-8") as f:
+        with gzip.open(self._cache_path, "wt", encoding="utf-8") as f:
             json.dump(self._cache, f, indent=2)
         LOGGER.info(f"Saved allele registry cache: {len(self._cache)} entries to {self._cache_path}")
 

@@ -56,9 +56,9 @@ logger = logging.getLogger(__name__)
 @click.option(
     "--allele-registry-cache",
     type=click.Path(path_type=Path),
-    default=lambda: Path.cwd() / "data" / "cache" / "allele_registry_cache.json",
-    show_default="./data/cache/allele_registry_cache.json",
-    help="Path to allele registry variant info cache JSON file",
+    default=lambda: Path.cwd() / "data" / "cache" / "allele_registry_cache.json.gz",
+    show_default="./data/cache/allele_registry_cache.json.gz",
+    help="Path to allele registry variant info cache (gzip-compressed JSON)",
 )
 def main(input_path, output_path, record, log_level, preserve_freetext, subdirs, allele_registry_cache):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""

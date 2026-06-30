@@ -14,9 +14,9 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces GA4GH Phe
 | `src/gci_phenopacket/cli.py` | Click CLI entry point, JSONL loop, output writing |
 | `src/gci_phenopacket/transformer.py` | All GCI → Phenopacket field mapping logic |
 | `src/gci_phenopacket/ontologies.py` | OntologyManager: HPO + Mondo via oaklib sqlite adapter (auto-cached by oaklib) |
-| `src/gci_phenopacket/allele_registry_client.py` | AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent JSON cache |
+| `src/gci_phenopacket/allele_registry_client.py` | AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent gzip-compressed JSON cache |
 | `tests/test_gci_transformer.py` | Unit tests (over 60 tests across 4 test files) |
-| `data/cache/allele_registry_cache.json` | Persistent allele registry variant info cache (committed to repo) |
+| `data/cache/allele_registry_cache.json.gz` | Persistent allele registry variant info cache (gzip-compressed JSON) |
 | `conftest.py` | Adds `src/` to sys.path for tests |
 | `pyproject.toml` | Package metadata and `gci-transform` entry point |
 | `data/gci/` | Input JSONL snapshots |
@@ -90,7 +90,7 @@ pixi run test
 - Tag values: `individual` (direct), `family`, `group` — reflects nesting in the GCI annotation
 - GENO zygosity terms are hardcoded in `GCI_TO_GENO` (4 terms + fallback `GENO:0000137`); unknown values log a warning
 - `iter_individuals(annotation)` yields `GCIIndividualContext` (fields: `individual`, `individual_id`, `group_id`, `family_id`) for all nesting levels
-- ClinGen Allele Registry API (`https://reg.genome.network`) enriches `VariationDescriptor` with HGVS expressions, VCF record (GRCh38, from the gnomAD v4 id), xrefs, and gene confirmation; three-tier lookup: `carId` → `/allele/{carId}`, then `clinvarVariantId` → `/alleles?ClinVar.variationId={id}`, then GCI record fallback (`hgvsNames`, `dbSNPIds`); responses cached in `data/cache/allele_registry_cache.json`
+- ClinGen Allele Registry API (`https://reg.genome.network`) enriches `VariationDescriptor` with HGVS expressions, VCF record (GRCh38, from the gnomAD v4 id), xrefs, and gene confirmation; three-tier lookup: `carId` → `/allele/{carId}`, then `clinvarVariantId` → `/alleles?ClinVar.variationId={id}`, then GCI record fallback (`hgvsNames`, `dbSNPIds`); responses cached in `data/cache/allele_registry_cache.json.gz` (gzip-compressed)
 - Gene context confirmed by matching `gene_symbol` against the gene list returned by the registry API (applies to both carId and clinvarVariantId lookup paths); falls back to string-match on `clinvarVariantTitle` when no API data available
 - `VariantInterpretation.acmg_pathogenicity_classification` is **always** `NOT_PROVIDED` — do NOT populate it from ClinVar or any other source. The Phenopacket v2 spec cannot record the provenance of a pathogenicity classification, so filling this field would falsely present another group's ClinVar assertion as our own. Revisit only if the Phenopacket spec adds provenance metadata for this field.
 - `resolve_disease(disease_id)` converts `MONDO_XXXXXXX` → `MONDO:XXXXXXX`; falls back for FREETEXT/empty
