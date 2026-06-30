@@ -17,13 +17,13 @@ LOGGER = logging.getLogger(__name__)
 FALLBACK_DISEASE_ID = "MONDO:0700096"
 FALLBACK_DISEASE_LABEL = "human disease"
 
-GCI_TO_GENO = {
+GCI_ZYGOSITY_TO_GENO = {
     "homozygous":   ("GENO:0000136", "homozygous"),
     "heterozygous": ("GENO:0000135", "heterozygous"),
     "twotrans":     ("GENO:0000402", "compound heterozygous"),
     "hemizygous":   ("GENO:0000134", "hemizygous"),
 }
-GENO_FALLBACK = ("GENO:0000137", "unspecified zygosity")
+ZYGOSITY_FALLBACK = ("GENO:0000137", "unspecified zygosity")
 
 RESOURCE_METADATA = [
     pps2.Resource(id="hp",    name="Human Phenotype Ontology",        namespace_prefix="HP",    url="http://purl.obolibrary.org/obo/hp.owl"),
@@ -31,19 +31,6 @@ RESOURCE_METADATA = [
     pps2.Resource(id="geno",  name="Genotype Ontology",               namespace_prefix="GENO",  url="http://purl.obolibrary.org/obo/geno.owl"),
     pps2.Resource(id="eco",   name="Evidence and Conclusion Ontology",namespace_prefix="ECO",   url="https://evidenceontology.org/repo/ECO.owl", iri_prefix="http://purl.obolibrary.org/obo/ECO_"),
 ]
-
-SEX_MAP = {
-    "male":   pps2.Sex.MALE,
-    "female": pps2.Sex.FEMALE,
-}
-
-AGE_UNIT_MAP = {
-    "Years":  "P{n}Y",
-    "Months": "P{n}M",
-    "Weeks":  "P{n}W",
-    "Days":   "P{n}D",
-    "Hours":  "PT{n}H",
-}
 
 @dataclass
 class GCIRecordContext:
@@ -283,11 +270,18 @@ def build_time_element(age_value, age_unit: str):
         days = round((age_value - weeks) * 7)
         return pps2.TimeElement(gestational_age=pps2.GestationalAge(weeks=weeks, days=days))
     
-    template = AGE_UNIT_MAP.get(age_unit)
-    if template is None:
+    try:
+        template = {
+            "Years":  "P{n}Y",
+            "Months": "P{n}M",
+            "Weeks":  "P{n}W",
+            "Days":   "P{n}D",
+            "Hours":  "PT{n}H",
+        }[age_unit]
+        return pps2.TimeElement(age=pps2.Age(iso8601duration=template.replace("{n}", str(int(age_value)))))
+    except KeyError:
         LOGGER.warning(f"Unrecognized ageUnit '{age_unit}' — omitting time_at_last_encounter")
         return None
-    return pps2.TimeElement(age=pps2.Age(iso8601duration=template.replace("{n}", str(int(age_value)))))
 
 
 def _gci_id(obj: dict) -> str:
@@ -335,7 +329,13 @@ def passes_filter(individual: dict) -> bool:
 
 def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:
     """Build pps2.Individual from individual dict fields."""
-    sex = SEX_MAP.get((individual.get("sex") or "").lower(), pps2.Sex.UNKNOWN_SEX)
+    sex = (individual.get("sex") or "").lower()
+    if sex == "male":
+        sex = pps2.Sex.MALE
+    elif sex == "female":
+        sex = pps2.Sex.FEMALE
+    else:
+        sex = pps2.Sex.UNKNOWN_SEX
     age_type = individual.get("ageType")
     age_unit = individual.get("ageUnit")
     age_value = individual.get("ageValue")
@@ -402,11 +402,11 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
     subject_id = f"PMID_{pmid}:{label}"
     zyg = individual.get("recessiveZygosity")
     if zyg:
-        if zyg.lower() not in GCI_TO_GENO:
+        if zyg.lower() not in GCI_ZYGOSITY_TO_GENO:
             LOGGER.warning(
                 f"Unrecognized recessiveZygosity '{zyg}' — falling back to unspecified zygosity"
             )
-        geno_id, geno_label = GCI_TO_GENO.get(zyg.lower(), GENO_FALLBACK)
+        geno_id, geno_label = GCI_ZYGOSITY_TO_GENO.get(zyg.lower(), ZYGOSITY_FALLBACK)
     else:
         geno_id, geno_label = None, None
 
