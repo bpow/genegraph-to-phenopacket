@@ -249,16 +249,6 @@ def extract_hpo_id(raw: str) -> str:
     return match.group(0) if match else raw
 
 
-def resolve_disease(disease_id: str) -> str:
-    """Convert 'MONDO_0016587' -> 'MONDO:0016587'. Returns fallback for FREETEXT_ or empty."""
-    if not disease_id or disease_id.startswith("FREETEXT_"):
-        return FALLBACK_DISEASE_ID
-    parts = disease_id.split("_", 1)
-    if len(parts) == 2:
-        return f"{parts[0]}:{parts[1]}"
-    return FALLBACK_DISEASE_ID
-
-
 def build_time_element(age_value, age_unit: str):
     """Convert ageValue + ageUnit to a phenopacket TimeElement."""
     if age_value is None:

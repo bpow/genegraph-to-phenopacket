@@ -1,6 +1,6 @@
 # tests/test_gci_transformer.py
 import phenopackets.schema.v2 as pps2
-from gci_phenopacket.transformer import sanitize_label, resolve_disease, build_time_element
+from gci_phenopacket.transformer import sanitize_label, build_time_element
 
 
 def test_sanitize_label_spaces():
@@ -11,18 +11,6 @@ def test_sanitize_label_colons():
 
 def test_sanitize_label_mixed():
     assert sanitize_label("Proband C:1 test") == "Proband_C-1_test"
-
-def test_resolve_disease_standard():
-    assert resolve_disease("MONDO_0016587") == "MONDO:0016587"
-
-def test_resolve_disease_preserves_numeric_part():
-    assert resolve_disease("MONDO_0700096") == "MONDO:0700096"
-
-def test_resolve_disease_freetext_returns_default():
-    assert resolve_disease("FREETEXT_abc123") == "MONDO:0700096"
-
-def test_resolve_disease_empty_returns_default():
-    assert resolve_disease("") == "MONDO:0700096"
 
 def test_build_time_element_years():
     te = build_time_element(41, "Years")
