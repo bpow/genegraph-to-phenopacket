@@ -113,7 +113,8 @@ class GCITransformer:
 
             for ind_ctx in iter_individuals(annotation):
                 self.stats.total_individuals += 1
-                if not passes_filter(ind_ctx.individual):
+                # Convert only individuals with at least one HPO term
+                if not (ind_ctx.individual.get("hpoIdInDiagnosis") or ind_ctx.individual.get("hpoIdInElimination")):
                     self.stats.skipped_no_hpo += 1
                     LOGGER.debug(f"Skipped (no HPO): {ind_ctx.individual.get('label')} — PMID {ann_ctx.pmid}")
                     continue
@@ -310,11 +311,6 @@ def iter_individuals(annotation: dict):
             fam_uuid = _gci_id(family)
             for ind in family.get("individualIncluded") or []:
                 yield GCIIndividualContext(individual=ind, individual_id=_gci_id(ind), group_id=grp_uuid, family_id=fam_uuid)
-
-
-def passes_filter(individual: dict) -> bool:
-    """Return True only if an individual has at least one HPO term."""
-    return bool(individual.get("hpoIdInDiagnosis")) or bool(individual.get("hpoIdInElimination"))
 
 
 def build_subject(pmid: str, label: str, individual: dict) -> pps2.Individual:

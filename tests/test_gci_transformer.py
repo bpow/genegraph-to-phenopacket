@@ -145,29 +145,6 @@ def test_provenance_id_group_family_individual():
     assert build_gci_provenance_id("gdm-1", "ind-1", group_uuid="grp-1", family_uuid="fam-1") == "gdm:gdm-1-group:grp-1-family:fam-1-individual:ind-1"
 
 
-from gci_phenopacket.transformer import passes_filter
-
-def test_passes_filter_proband_with_hpo():
-    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
-    assert passes_filter(ind) is True
-
-def test_passes_filter_proband_with_elimination_only():
-    ind = {"is_proband": "Yes", "hpoIdInDiagnosis": [], "hpoIdInElimination": ["HP:0001"]}
-    assert passes_filter(ind) is True
-
-def test_passes_filter_non_proband_with_hpo():
-    ind = {"is_proband": "No", "hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
-    assert passes_filter(ind) is True
-
-def test_passes_filter_no_hpo():
-    ind = {"hpoIdInDiagnosis": [], "hpoIdInElimination": []}
-    assert passes_filter(ind) is False
-
-def test_passes_filter_missing_is_proband_with_hpo():
-    ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
-    assert passes_filter(ind) is True
-
-
 import phenopackets.schema.v2 as pps2
 from gci_phenopacket.transformer import build_subject
 
