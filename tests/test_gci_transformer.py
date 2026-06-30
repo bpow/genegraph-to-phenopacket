@@ -226,33 +226,34 @@ def test_build_subject_gestational_age():
     assert subj.time_at_last_encounter.gestational_age.days == 4
 
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from gci_phenopacket.transformer import GCITransformer
 
-def _make_om():
-    """Mock OntologyManager — returns predictable HPO labels."""
-    om = MagicMock()
-    om.hpo_to_labeled_phenotype.side_effect = lambda hpo_id: {
-        "id": hpo_id, "label": f"Label for {hpo_id}"
-    }
-    return om
+def _make_transformer(hpo_label=lambda curie: f"Label for {curie}", mondo_map=None):
+    """Build a GCITransformer with mocked ontology adapters."""
+    hp = MagicMock()
+    hp.label.side_effect = hpo_label
+    mondo = MagicMock()
+    mondo.label.side_effect = lambda curie: (mondo_map or {}).get(curie)
+    with patch("gci_phenopacket.transformer.get_adapter", side_effect=[hp, mondo]):
+        return GCITransformer()
 
 def test_phenotypic_features_diagnosis_not_excluded():
     ind = {"hpoIdInDiagnosis": ["HP:0001942"], "hpoIdInElimination": []}
-    features = GCITransformer(_make_om()).build_phenotypic_features(ind, "12345", "Article title")
+    features = _make_transformer().build_phenotypic_features(ind, "12345", "Article title")
     assert len(features) == 1
     assert features[0].type.id == "HP:0001942"
     assert features[0].excluded is False
 
 def test_phenotypic_features_elimination_excluded():
     ind = {"hpoIdInDiagnosis": [], "hpoIdInElimination": ["HP:0001903"]}
-    features = GCITransformer(_make_om()).build_phenotypic_features(ind, "12345", "Title")
+    features = _make_transformer().build_phenotypic_features(ind, "12345", "Title")
     assert len(features) == 1
     assert features[0].excluded is True
 
 def test_phenotypic_features_combined():
     ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": ["HP:0002"]}
-    features = GCITransformer(_make_om()).build_phenotypic_features(ind, "12345", "Title")
+    features = _make_transformer().build_phenotypic_features(ind, "12345", "Title")
     assert len(features) == 2
     excluded_flags = {f.type.id: f.excluded for f in features}
     assert excluded_flags["HP:0001"] is False
@@ -260,7 +261,7 @@ def test_phenotypic_features_combined():
 
 def test_phenotypic_features_evidence_populated():
     ind = {"hpoIdInDiagnosis": ["HP:0001"], "hpoIdInElimination": []}
-    features = GCITransformer(_make_om()).build_phenotypic_features(ind, "99999", "My Article")
+    features = _make_transformer().build_phenotypic_features(ind, "99999", "My Article")
     ev = features[0].evidence[0]
     assert ev.reference.id == "PMID:99999"
     assert ev.reference.description == "My Article"
@@ -357,17 +358,10 @@ def test_variant_prefers_variants_over_variant_scores():
 
 from gci_phenopacket.transformer import GCIRecordContext, GCIAnnotationContext
 
-def _make_om_with_mondo():
-    om = MagicMock()
-    om.hpo_to_labeled_phenotype.side_effect = lambda h: {"id": h, "label": f"L:{h}"}
-    _mondo_data = {
-        "MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy",
-    }
-    om.mondo_label.side_effect = _mondo_data.get
-    return om
-
 def _transformer():
-    return GCITransformer(_make_om_with_mondo())
+    return _make_transformer(mondo_map={
+        "MONDO:0016587": "arrhythmogenic right ventricular cardiomyopathy",
+    })
 
 def _base_individual():
     return {

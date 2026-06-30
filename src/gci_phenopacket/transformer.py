@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from typing import Iterator
 import phenopackets.schema.v2 as pps2
 from google.protobuf.timestamp_pb2 import Timestamp
+from oaklib import get_adapter
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -82,11 +83,28 @@ class GCITransformerStats:
 
 class GCITransformer:
     """Class to encapsulate transformation logic from GCI records to Phenopackets."""
-    def __init__(self, ontology_manager, preserve_freetext: bool = False, allele_registry_client=None):
-        self.om = ontology_manager
+    def __init__(self, preserve_freetext: bool = False, allele_registry_client=None,
+                 hp_selector: str = "sqlite:obo:hp", mondo_selector: str = "sqlite:obo:mondo"):
+        LOGGER.info("Initializing Ontologies (Checking Cache/Remote)...")
+        self._hpo = get_adapter(hp_selector)
+        self._mondo = get_adapter(mondo_selector)
+        LOGGER.info("Ontologies successfully loaded and indexed.")
         self.stats = GCITransformerStats()
         self.preserve_freetext = preserve_freetext
         self.allele_registry_client = allele_registry_client
+
+    def hpo_to_labeled_phenotype(self, hpo_id):
+        """Map HPO ID (e.g. 'obo:HP_0001250' or 'HP:0001250') to {id, label}."""
+        normalized = hpo_id.replace("obo:HP_", "HP:").replace("obo:HP:", "HP:")
+        label = self._hpo.label(normalized)
+        if label is None:
+            LOGGER.warning(f"Could not resolve HPO label for {hpo_id}")
+            return {"id": normalized, "label": "Unknown Phenotype"}
+        return {"id": normalized, "label": label}
+
+    def mondo_label(self, disease_id):
+        """Return the Mondo label for a CURIE, or None if not found."""
+        return self._mondo.label(disease_id)
 
     def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
         """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
@@ -132,14 +150,14 @@ class GCITransformer:
         """Build PhenotypicFeature list from hpoIdInDiagnosis and hpoIdInElimination."""
         features = []
         for hpo_id in individual.get("hpoIdInDiagnosis", []):
-            mapped = self.om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
+            mapped = self.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
             features.append(pps2.PhenotypicFeature(
                 type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
                 excluded=False,
                 evidence=[_make_evidence(pmid, article_title)],
             ))
         for hpo_id in individual.get("hpoIdInElimination", []):
-            mapped = self.om.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
+            mapped = self.hpo_to_labeled_phenotype(extract_hpo_id(hpo_id))
             features.append(pps2.PhenotypicFeature(
                 type=pps2.OntologyClass(id=mapped["id"], label=mapped["label"]),
                 excluded=True,
@@ -152,7 +170,7 @@ class GCITransformer:
         raw_disease_label = diagnosis.get("term")
         if raw_disease_id.startswith("MONDO_"):
             disease_id = raw_disease_id.replace("_", ":", 1)
-            disease_label = self.om.mondo_label(disease_id)
+            disease_label = self.mondo_label(disease_id)
             if disease_label is None:
                 disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
                 LOGGER.warning(

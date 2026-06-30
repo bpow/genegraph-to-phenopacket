@@ -31,17 +31,19 @@ def input_file(tmp_path):
     return f
 
 
-def mock_om():
-    om = MagicMock()
-    om.hpo_to_labeled_phenotype.return_value = {"id": "HP:0001250", "label": "Seizure"}
-    return om
+def patch_ontologies():
+    """Patch the oaklib adapters loaded by GCITransformer with stubs."""
+    hp = MagicMock()
+    hp.label.return_value = "Seizure"
+    mondo = MagicMock()
+    return patch("gci_phenopacket.transformer.get_adapter", side_effect=[hp, mondo])
 
 
 def test_cli_default_output_is_gci_phenopackets_in_cwd(input_file, tmp_path, monkeypatch):
     """--output defaults to ./gci_phenopackets in the current working directory."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    with patch("gci_phenopacket.cli.OntologyManager", return_value=mock_om()):
+    with patch_ontologies():
         result = runner.invoke(main, ["--input", str(input_file)])
     assert result.exit_code == 0
     assert (tmp_path / "gci_phenopackets").is_dir()
@@ -51,7 +53,7 @@ def test_cli_prompts_for_input_when_not_provided(input_file, tmp_path, monkeypat
     """When --input is omitted, CLI prompts the user interactively."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    with patch("gci_phenopacket.cli.OntologyManager", return_value=mock_om()):
+    with patch_ontologies():
         result = runner.invoke(main, input=str(input_file) + "\n")
     assert "Path to input JSONL file" in result.output
 
@@ -63,7 +65,7 @@ def test_cli_record_flag_processes_only_that_line(tmp_path, monkeypatch):
     two_records.write_text(MINIMAL_RECORD + "\n" + MINIMAL_RECORD + "\n")
 
     runner = CliRunner()
-    with patch("gci_phenopacket.cli.OntologyManager", return_value=mock_om()):
+    with patch_ontologies():
         result = runner.invoke(main, ["--input", str(two_records), "--record", "0", "-S"])
 
     assert result.exit_code == 0

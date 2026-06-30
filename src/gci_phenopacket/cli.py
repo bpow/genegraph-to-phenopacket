@@ -8,7 +8,6 @@ import click
 from google.protobuf.json_format import MessageToJson
 
 from gci_phenopacket.allele_registry_client import AlleleRegistryClient
-from gci_phenopacket.ontologies import OntologyManager
 from gci_phenopacket.transformer import GCITransformer
 
 logger = logging.getLogger(__name__)
@@ -68,14 +67,15 @@ def main(input_path, output_path, record, log_level, preserve_freetext, subdirs,
         format="%(levelname)s: %(message)s",
     )
 
+    allele_registry_client = AlleleRegistryClient(allele_registry_cache)
     try:
-        om = OntologyManager()
+        transformer = GCITransformer(
+            preserve_freetext=preserve_freetext,
+            allele_registry_client=allele_registry_client,
+        )
     except Exception as e:
         logging.error(f"Failed to initialize ontologies: {e}")
         raise SystemExit(1)
-    
-    allele_registry_client = AlleleRegistryClient(allele_registry_cache)
-    transformer = GCITransformer(om, preserve_freetext=preserve_freetext, allele_registry_client=allele_registry_client)
 
     try:
         with open(input_path, encoding="utf-8") as f:

@@ -7,14 +7,13 @@ This pipeline reads a ClinGen GCI snapshot (JSONL format) and produces **GA4GH P
 ```
 src/gci_phenopacket/
   cli.py               # Click CLI entry point and JSONL processing loop
-  transformer.py       # All GCI → Phenopacket field mapping logic
-  ontologies.py        # OntologyManager: HP and Mondo via oaklib sqlite adapter
+  transformer.py       # All GCI → Phenopacket field mapping logic; loads HP and Mondo via oaklib sqlite adapter
   allele_registry_client.py  # AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent gzip-compressed JSON cache
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
   test_cli.py              # CLI integration tests
-  test_ontologies.py       # Ontology caching and lookup tests
+  test_ontologies.py       # Ontology lookup tests (GCITransformer HPO/Mondo methods)
   test_allele_registry_client.py  # Allele Registry client parse, cache, and API tests
 
 data/
