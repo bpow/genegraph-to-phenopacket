@@ -9,18 +9,18 @@ src/gci_phenopacket/
   cli.py               # Click CLI entry point and JSONL processing loop
   transformer.py       # All GCI → Phenopacket field mapping logic
   ontologies.py        # OntologyManager: HP and Mondo via oaklib sqlite adapter
-  caid_client.py       # CaidClient: CAID API fetch + persistent JSON cache
+  allele_registry_client.py  # AlleleRegistryClient: ClinGen Allele Registry API fetch + persistent JSON cache
 
 tests/
   test_gci_transformer.py  # Unit tests for transformation logic
   test_cli.py              # CLI integration tests
   test_ontologies.py       # Ontology caching and lookup tests
-  test_caid_client.py      # CAID client parse, cache, and API tests
+  test_allele_registry_client.py  # Allele Registry client parse, cache, and API tests
 
 data/
   gci/                 # Input JSONL snapshots
   cache/
-    caid_cache.json    # Persistent CAID variant info cache (committed to repo)
+    allele_registry_cache.json    # Persistent allele registry variant info cache (committed to repo)
 ```
 
 ## Requirements
@@ -95,10 +95,10 @@ pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --preserve
 pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --no-subdirs
 ```
 
-**Use a custom CAID cache location (defaults to `./data/cache/caid_cache.json`):**
+**Use a custom allele registry cache location (defaults to `./data/cache/allele_registry_cache.json`):**
 
 ```bash
-pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --caid-cache /path/to/caid_cache.json
+pixi run gci_transform --input data/gci/gci_snapshot_2026-03-11.jsonl --allele-registry-cache /path/to/allele_registry_cache.json
 ```
 
 By default, output files are written to gene-name subdirectories under the output directory, named after their Phenopacket ID:
@@ -115,7 +115,7 @@ For example: `gci_phenopackets/DSG2/DSG2_MONDO_0016587_16505173_Patient_1_abc123
 
 Ontologies (HP and Mondo) are downloaded on first run via oaklib's sqlite adapter and cached automatically by oaklib. Subsequent runs reuse the cached databases. GENO zygosity terms are hardcoded in `transformer.py` and do not require a download.
 
-## CAID Variant Cache
+## Allele Registry Variant Cache
 
 The pipeline calls the [ClinGen Allele Registry](https://reg.genome.network) to enrich the `VariationDescriptor` with:
 
@@ -130,7 +130,7 @@ The lookup is attempted in three tiers per variant:
 2. **Has `clinvarVariantId`** (no carId) → `GET reg.genome.network/alleles?ClinVar.variationId={id}`
 3. **Neither** → falls back to HGVS and dbSNP data already present in the GCI record (`hgvsNames`, `dbSNPIds`)
 
-Responses are cached in `data/cache/caid_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run (via `try/finally`, so entries are preserved even if the run is interrupted).
+Responses are cached in `data/cache/allele_registry_cache.json`, which is committed to the repository. The cache is checked before every API call — on subsequent runs, variants already in the cache require no network access. The cache is written to disk at the end of each run (via `try/finally`, so entries are preserved even if the run is interrupted).
 
 ## Individual Filtering
 
@@ -187,7 +187,7 @@ Resolved from the individual in priority order:
 
 For each variant, `carId` is preferred for the ID (`caid:CA...`), falling back to `clinvarVariantId` (`clinvar:...`).
 
-The CAID API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor` — first via `carId`, then via `clinvarVariantId` if no `carId` is present. See [CAID Variant Cache](#caid-variant-cache).
+The Allele Registry API is called (or cache checked) to populate `expressions`, `vcf_record`, and `xrefs` on the `VariationDescriptor` — first via `carId`, then via `clinvarVariantId` if no `carId` is present. See [Allele Registry Variant Cache](#allele-registry-variant-cache).
 
 ### Zygosity
 

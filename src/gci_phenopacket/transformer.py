@@ -82,11 +82,11 @@ class GCITransformerStats:
 
 class GCITransformer:
     """Class to encapsulate transformation logic from GCI records to Phenopackets."""
-    def __init__(self, ontology_manager, preserve_freetext: bool = False, caid_client=None):
+    def __init__(self, ontology_manager, preserve_freetext: bool = False, allele_registry_client=None):
         self.om = ontology_manager
         self.stats = GCITransformerStats()
         self.preserve_freetext = preserve_freetext
-        self.caid_client = caid_client
+        self.allele_registry_client = allele_registry_client
 
     def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
         """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
@@ -209,7 +209,7 @@ class GCITransformer:
         # Build parts
         subject = build_subject(ann_ctx.pmid, label, individual)
         phenotypic_features = self.build_phenotypic_features(individual, ann_ctx.pmid, ann_ctx.title)
-        genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id, self.caid_client)
+        genomic_interps = build_genomic_interpretations(individual, ann_ctx.pmid, label, ctx.gene_symbol, ctx.hgnc_id, self.allele_registry_client)
 
         interpretation = pps2.Interpretation(
             id=pp_id,
@@ -351,7 +351,7 @@ def _make_evidence(pmid: str, article_title: str) -> pps2.Evidence:
 
 
 def _build_expressions_from_gci(variant: dict) -> list:
-    """Build Expression list from GCI hgvsNames as fallback when no CAID data."""
+    """Build Expression list from GCI hgvsNames as fallback when no registry data."""
     expressions = []
     hgvs_names = variant.get("hgvsNames") or {}
     for assembly in ("GRCh38", "GRCh37"):
@@ -367,7 +367,7 @@ def _build_expressions_from_gci(variant: dict) -> list:
 
 
 def _build_xrefs_from_gci(variant: dict) -> list:
-    """Build xrefs list from GCI variant data as fallback when no CAID data."""
+    """Build xrefs list from GCI variant data as fallback when no registry data."""
     xrefs = []
     for rs_id in variant.get("dbSNPIds") or []:
         xrefs.append(f"dbSNP:rs{rs_id}")
@@ -379,7 +379,7 @@ def _build_xrefs_from_gci(variant: dict) -> list:
 
 def build_genomic_interpretations(individual: dict, pmid: str, label: str,
                                    gene_symbol: str, hgnc_id: str,
-                                   caid_client=None) -> list:
+                                   allele_registry_client=None) -> list:
     """Build one GenomicInterpretation per variant in the individual."""
     subject_id = f"PMID_{pmid}:{label}"
     zyg = individual.get("recessiveZygosity")
@@ -413,27 +413,27 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
         var_title = variant.get("clinvarVariantTitle", "")
 
         # Three-tier lookup: carId → clinvarVariantId → GCI record data
-        caid_data = None
-        if caid_client is not None:
+        registry_data = None
+        if allele_registry_client is not None:
             if car_id:
-                caid_data = caid_client.get(car_id)
-                if caid_data is None:
-                    LOGGER.warning(f"No CAID data for {car_id} — trying ClinVar lookup")
-            if caid_data is None and clinvar_id:
-                caid_data = caid_client.get_by_clinvar_id(clinvar_id)
-            if caid_data is None and (car_id or clinvar_id):
-                LOGGER.warning("No CAID data — falling back to GCI record data")
+                registry_data = allele_registry_client.get(car_id)
+                if registry_data is None:
+                    LOGGER.warning(f"No registry data for {car_id} — trying ClinVar lookup")
+            if registry_data is None and clinvar_id:
+                registry_data = allele_registry_client.get_by_clinvar_id(clinvar_id)
+            if registry_data is None and (car_id or clinvar_id):
+                LOGGER.warning("No registry data — falling back to GCI record data")
 
-        if caid_data is not None:
+        if registry_data is not None:
             expressions = [
                 pps2.Expression(syntax=e["syntax"], value=e["value"])
-                for e in caid_data.get("expressions") or []
+                for e in registry_data.get("expressions") or []
             ]
-            xrefs = list(caid_data.get("xrefs") or [])
-            # Ensure GCI clinvarVariantId is always in xrefs even if CAID API omitted it
+            xrefs = list(registry_data.get("xrefs") or [])
+            # Ensure GCI clinvarVariantId is always in xrefs even if registry API omitted it
             if clinvar_id and f"ClinVar:{clinvar_id}" not in xrefs:
                 xrefs.append(f"ClinVar:{clinvar_id}")
-            gene_confirmed = gene_symbol in (caid_data.get("gene_symbols") or [])
+            gene_confirmed = gene_symbol in (registry_data.get("gene_symbols") or [])
         else:
             expressions = _build_expressions_from_gci(variant)
             xrefs = _build_xrefs_from_gci(variant)
@@ -450,8 +450,8 @@ def build_genomic_interpretations(individual: dict, pmid: str, label: str,
         if xrefs:
             vd_kwargs["xrefs"] = xrefs
 
-        if caid_data is not None and caid_data.get("vcf_record"):
-            vcf = caid_data["vcf_record"]
+        if registry_data is not None and registry_data.get("vcf_record"):
+            vcf = registry_data["vcf_record"]
             vd_kwargs["vcf_record"] = pps2.VcfRecord(
                 genome_assembly=vcf["genome_assembly"],
                 chrom=vcf["chrom"],

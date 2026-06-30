@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 from google.protobuf.json_format import MessageToJson
 
-from gci_phenopacket.caid_client import CaidClient
+from gci_phenopacket.allele_registry_client import AlleleRegistryClient
 from gci_phenopacket.ontologies import OntologyManager
 from gci_phenopacket.transformer import GCITransformer
 
@@ -54,13 +54,13 @@ logger = logging.getLogger(__name__)
     help="Create per-gene subdirectories under the output directory",
 )
 @click.option(
-    "--caid-cache",
+    "--allele-registry-cache",
     type=click.Path(path_type=Path),
-    default=lambda: Path.cwd() / "data" / "cache" / "caid_cache.json",
-    show_default="./data/cache/caid_cache.json",
-    help="Path to CAID variant info cache JSON file",
+    default=lambda: Path.cwd() / "data" / "cache" / "allele_registry_cache.json",
+    show_default="./data/cache/allele_registry_cache.json",
+    help="Path to allele registry variant info cache JSON file",
 )
-def main(input_path, output_path, record, log_level, preserve_freetext, subdirs, caid_cache):
+def main(input_path, output_path, record, log_level, preserve_freetext, subdirs, allele_registry_cache):
     """Transform a ClinGen GCI snapshot (JSONL) into GA4GH Phenopacket v2 JSON files."""
     logging.basicConfig(
         level=log_level.upper(),
@@ -74,8 +74,8 @@ def main(input_path, output_path, record, log_level, preserve_freetext, subdirs,
         logging.error(f"Failed to initialize ontologies: {e}")
         raise SystemExit(1)
     
-    caid_client = CaidClient(caid_cache)
-    transformer = GCITransformer(om, preserve_freetext=preserve_freetext, caid_client=caid_client)
+    allele_registry_client = AlleleRegistryClient(allele_registry_cache)
+    transformer = GCITransformer(om, preserve_freetext=preserve_freetext, allele_registry_client=allele_registry_client)
 
     try:
         with open(input_path, encoding="utf-8") as f:
@@ -106,7 +106,7 @@ def main(input_path, output_path, record, log_level, preserve_freetext, subdirs,
                         out_f.write(MessageToJson(pp, indent=2))
                     logger.debug(f"Saved: {out_path.name}")
     finally:
-        caid_client.save()
+        allele_registry_client.save()
 
     logger.info(
         f"Done. Written: {transformer.stats.phenopackets_created} | "

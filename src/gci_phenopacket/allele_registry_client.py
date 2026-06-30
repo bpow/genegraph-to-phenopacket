@@ -5,10 +5,10 @@ import urllib.error
 from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
-CAID_API_BASE = "https://reg.genome.network"
+ALLELE_REGISTRY_API_BASE = "https://reg.genome.network"
 
 
-class CaidClient:
+class AlleleRegistryClient:
     """Fetches variant info from the ClinGen Allele Registry with a persistent JSON cache."""
 
     def __init__(self, cache_path: Path):
@@ -18,9 +18,9 @@ class CaidClient:
             try:
                 with open(cache_path, encoding="utf-8") as f:
                     self._cache = json.load(f)
-                LOGGER.info(f"Loaded CAID cache: {len(self._cache)} entries from {cache_path}")
+                LOGGER.info(f"Loaded allele registry cache: {len(self._cache)} entries from {cache_path}")
             except Exception as e:
-                LOGGER.warning(f"Could not load CAID cache from {cache_path}: {e}")
+                LOGGER.warning(f"Could not load allele registry cache from {cache_path}: {e}")
 
     def get(self, car_id: str) -> dict | None:
         """Return enriched variant info by CAID. Uses cache first, then API."""
@@ -46,36 +46,36 @@ class CaidClient:
         self._cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self._cache_path, "w", encoding="utf-8") as f:
             json.dump(self._cache, f, indent=2)
-        LOGGER.info(f"Saved CAID cache: {len(self._cache)} entries to {self._cache_path}")
+        LOGGER.info(f"Saved allele registry cache: {len(self._cache)} entries to {self._cache_path}")
 
     def _fetch(self, car_id: str) -> dict | None:
-        url = f"{CAID_API_BASE}/allele/{car_id}"
+        url = f"{ALLELE_REGISTRY_API_BASE}/allele/{car_id}"
         try:
             with urllib.request.urlopen(url, timeout=10) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
-            LOGGER.debug(f"CAID API: fetched {car_id}")
+            LOGGER.debug(f"Allele Registry API: fetched {car_id}")
             return self._parse(raw)
         except urllib.error.HTTPError as e:
-            LOGGER.warning(f"CAID API HTTP {e.code} for {car_id} — skipping")
+            LOGGER.warning(f"Allele Registry API HTTP {e.code} for {car_id} — skipping")
         except Exception as e:
-            LOGGER.warning(f"CAID API error for {car_id}: {e} — skipping")
+            LOGGER.warning(f"Allele Registry API error for {car_id}: {e} — skipping")
         return None
 
     def _fetch_by_clinvar_id(self, clinvar_id: str) -> dict | None:
-        url = f"{CAID_API_BASE}/alleles?ClinVar.variationId={clinvar_id}"
+        url = f"{ALLELE_REGISTRY_API_BASE}/alleles?ClinVar.variationId={clinvar_id}"
         try:
             with urllib.request.urlopen(url, timeout=10) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
             if not raw:
-                LOGGER.debug(f"CAID API: no allele found for ClinVar:{clinvar_id}")
+                LOGGER.debug(f"Allele Registry API: no allele found for ClinVar:{clinvar_id}")
                 return None
             caid = raw[0].get("@id", "").split("/")[-1]
-            LOGGER.debug(f"CAID API: ClinVar:{clinvar_id} -> {caid}")
+            LOGGER.debug(f"Allele Registry API: ClinVar:{clinvar_id} -> {caid}")
             return self._parse(raw[0])
         except urllib.error.HTTPError as e:
-            LOGGER.warning(f"CAID API HTTP {e.code} for ClinVar:{clinvar_id} — skipping")
+            LOGGER.warning(f"Allele Registry API HTTP {e.code} for ClinVar:{clinvar_id} — skipping")
         except Exception as e:
-            LOGGER.warning(f"CAID API error for ClinVar:{clinvar_id}: {e} — skipping")
+            LOGGER.warning(f"Allele Registry API error for ClinVar:{clinvar_id}: {e} — skipping")
         return None
 
     def _parse(self, data: dict) -> dict:
