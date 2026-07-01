@@ -93,7 +93,6 @@ pixi run test
 - Gene context confirmed by matching `gene_symbol` against the gene list returned by the registry API (applies to both carId and clinvarVariantId lookup paths); falls back to string-match on `clinvarVariantTitle` when no API data available
 - `VariantInterpretation.acmg_pathogenicity_classification` is **always** `NOT_PROVIDED` — do NOT populate it from ClinVar or any other source. The Phenopacket v2 spec cannot record the provenance of a pathogenicity classification, so filling this field would falsely present another group's ClinVar assertion as our own. Revisit only if the Phenopacket spec adds provenance metadata for this field.
 - Ontologies (HP, Mondo only) are loaded in `GCITransformer.__init__` via oaklib's sqlite adapter (`sqlite:obo:hp`, `sqlite:obo:mondo`); oaklib manages download and caching automatically. Tests patch `gci_phenopacket.transformer.get_adapter` to inject mock adapters
-- `GCITransformer.mondo_label(disease_id)` returns the Mondo label string or `None` if not found
 - `--record N` jumps directly to line N via `itertools.islice` — does not scan the whole file
 
 ## Environment

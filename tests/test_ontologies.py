@@ -30,15 +30,3 @@ def test_hpo_to_labeled_phenotype_returns_fallback_on_unknown_id():
     t, _ = _make_transformer(hp_labels={})
     result = t.hpo_to_labeled_phenotype("HP:9999999")
     assert result == {"id": "HP:9999999", "label": "Unknown Phenotype"}
-
-
-def test_mondo_label_returns_label_when_found():
-    """mondo_label returns the ontology label string for a known CURIE."""
-    t, _ = _make_transformer(mondo_labels={"MONDO:0007947": "Marfan syndrome"})
-    assert t.mondo_label("MONDO:0007947") == "Marfan syndrome"
-
-
-def test_mondo_label_returns_none_when_not_found():
-    """mondo_label returns None for an unknown CURIE."""
-    t, _ = _make_transformer(mondo_labels={})
-    assert t.mondo_label("MONDO:9999999") is None

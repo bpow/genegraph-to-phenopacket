@@ -89,10 +89,6 @@ class GCITransformer:
             return {"id": normalized, "label": "Unknown Phenotype"}
         return {"id": normalized, "label": label}
 
-    def mondo_label(self, disease_id):
-        """Return the Mondo label for a CURIE, or None if not found."""
-        return self._mondo.label(disease_id)
-
     def phenopackets_from_gci_record(self, record: dict) -> Iterator[pps2.Phenopacket]:
         """Extract phenopackets from a single GCI record dict. Returns list of phenopackets."""
         self.stats.total_records += 1
@@ -158,7 +154,7 @@ class GCITransformer:
         raw_disease_label = diagnosis.get("term")
         if raw_disease_id.startswith("MONDO_"):
             disease_id = raw_disease_id.replace("_", ":", 1)
-            disease_label = self.mondo_label(disease_id)
+            disease_label = self._mondo.label(disease_id)
             if disease_label is None:
                 disease_label = raw_disease_label or FALLBACK_DISEASE_LABEL
                 LOGGER.warning(
